@@ -1,0 +1,51 @@
+<!-- canSniffer.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP8266 I2C Data Display</title>
+    <link rel="stylesheet" type="text/css" href="canSniffer.css">
+</head>
+<body>
+
+<div>
+    <label for="display-mode">Display Mode:</label>
+    <select id="display-mode" onchange="changeDisplayMode()">
+        <option value="hex">Hex</option>
+        <option value="dec">Dec</option>
+        <option value="bin">Bin</option>
+    </select>
+</div>
+
+<div>
+    <label for="filter-input">Filter by ID:</label>
+    <input type="text" id="filter-input" oninput="filterData()">
+</div>
+
+<table id="data-table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>RTR</th>
+            <th>IDE</th>
+            <th>D0</th>
+            <th>D1</th>
+            <th>D2</th>
+            <th>D3</th>
+            <th>D4</th>
+            <th>D5</th>
+            <th>D6</th>
+            <th>D7</th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- Data rows will be dynamically added here -->
+    </tbody>
+</table>
+
+<script src="canSniffer.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "MainCPU",
+			"path": "MainCPU"
+		}
+	],
+	"settings": {}
+}
