@@ -5,15 +5,36 @@
 
 const char *ssid = "FunBox3-EA22";
 const char *password = "9LYXSMWWKFN7";
-
+const char *characters[] = {"0123456789",
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "abcdefghijklmnopqrstuvwxyz"};
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite sprite1 = TFT_eSprite(&tft);
 AsyncWebServer server(80);
 int j=0;
 static int spedometer_size = 0;
 Gauge * spedometer[10];
+String spedometer_name[10];
 
 int speedAngle = 0;
+
+String randomStringGenerator(int length){
+  String result = "";
+  char actual;
+  for (size_t i = 0; i < length; i++)
+  {
+    randomSeed(analogRead(A0));
+    actual = random(3);
+    if(actual==0){
+      actual = characters[actual][random(300)%9];
+    }
+    else{
+      actual = characters[actual][random(300)%27];
+    }
+    result += actual;
+  }
+  return result;
+}
 
 void notFound(AsyncWebServerRequest *request) {
   String content = "<html lang=\"en\">"; 
@@ -197,6 +218,21 @@ content += "</body>";
 content += "</html>";
 request->send(200, "text/html", content);
 }
+void handleDeleteOldGauge(AsyncWebServerRequest * request){
+  String content = F("<!DOCTYPE html>\n<html lang='en'>\n<head>\n");
+  // Add other head elements here
+  content += F("</head>\n<body>\n<h2>Object List</h2>\n<ul id='objectList'>\n");
+
+  for (size_t i = 0; i < spedometer_size; ++i) {
+    content += "<li>" + String(spedometer_name[i]) + "<input type='submit' id=" + i + " value='Delete'>";
+  }
+
+  content += F("</ul>\n<script>\nfunction deleteObject(id) {\n");
+  content += F("  var listItem = document.getElementById('object' + id);\n");
+  content += F("  listItem.parentNode.removeChild(listItem);\n");
+  content += F("}\n</script>\n</body>\n</html>");
+  request->send(200, "text/html", content);
+}
 void handleCreateNewGauge(AsyncWebServerRequest *request){
 String content = "<!-- settings.html -->";
 content += "<!DOCTYPE html>"; 
@@ -234,34 +270,28 @@ content += "<body>";
 content += "<a href='/'><input type='button' value='Home'></a>";  
 content += "<h2>Create New Gauge Face</h2>"; 
 content += "<label for='gauge-type'>Gauge Type</label>"; 
-content += "<select id='gauge-type' class='setting-input'>"; 
+content += "<select id='gauge-type' name='gauge-type' class='setting-input'>"; 
 content += "<option value='1'>Analogue Gauge</option>"; 
 content += "<option value='2'>Digital Gauge</option>"; 
 content += "</select>"; 
 content += "<form action='/add-gauge' method='post'>"; 
 content += "<label for='gauge-name'>Gauge Name:</label>"; 
-content += "<input type='text' id='gauge-name' class='setting-input'>"; 
+content += "<input type='text' id='gauge-name' name='gauge-name' class='setting-input'>"; 
 content += "<label for='min-value'>Minimum Value:</label>"; 
-content += "<input type='number' id='min-value' class='setting-input' value='0'>"; 
+content += "<input type='number' id='min-value' name='min-value' class='setting-input' value='0'>"; 
 content += "<label for='max-value'>Maximum Value:</label>"; 
-content += "<input type='number' id='max-value' class='setting-input' value='240'>"; 
+content += "<input type='number' id='max-value' name='max-value' class='setting-input' value='240'>"; 
 content += "<label for='critical-value'>Critical Value:</label>"; 
-content += "<input type='number' id='critical-value' class='setting-input'>"; 
+content += "<input type='number' id='critical-value' name='critical-value' class='setting-input'>"; 
 content += "<label for='unit'>Unit:</label>"; 
 content += "<input type='text' id='unit' name='unit' class='setting-input'><br>"; 
 content += "<label for='frame-number'>Frame Number:</label>"; 
-content += "<input type='number' id='frame-number' class='setting-input'>"; 
-content += "<label for='byte-number'>Byte Number:</label>"; 
-content += "<input type='number' id='byte-number' class='setting-input'>"; 
+content += "<input type='number' id='frame-number' name='frame-number' class='setting-input'>"; 
+content += "<label for='byte-number'>MSB Byte Number:</label>"; 
+content += "<input type='number' id='byte-number-msb' name='byte-number-msb' class='setting-input'>"; 
+content += "<label for='byte-number'>LSB Byte Number:</label>"; 
+content += "<input type='number' id='byte-number-lsb' name='byte-number-lsb' class='setting-input'>"; 
 content += "<label for='value-size'>Value Size:</label>"; 
-content += "<select id='value-size' class='setting-input'>"; 
-content += "<option value='1'>1 Byte</option>"; 
-content += "<option value='2'>2 Bytes</option>"; 
-content += "</select>"; 
-content += "<label for='byte1-number'>Byte 1 Number (for 2 Bytes):</label>"; 
-content += "<input type='number' id='byte1-number' class='setting-input'>"; 
-content += "<label for='byte2-number'>Byte 2 Number (for 2 Bytes):</label>"; 
-content += "<input type='number' id='byte2-number' class='setting-input'>"; 
 content += "<input type='submit' value='Add Gauge'>"; 
 content += "</form>"; 
 content += "</body>"; 
@@ -288,6 +318,7 @@ content += "</style>";
 content += "</head>"; 
 content += "<body>"; 
 content += "<a href='/new-gauge'><input type='button' value='Create New Gauge Face'></a>"; 
+content += "<a href='/old-gauge'><input type='button' value='Delete Gauge Faces'></a>"; 
 content += "<a href='/settings'><input type='button' value='Settings'></a>"; 
 content += "<a href='/can-sniffer'><input type='button' value='CanSniffer'></a>";  
 content += "</body>"; 
@@ -296,27 +327,68 @@ content += "</html>";
 }
 
 void handleAddGauge(AsyncWebServerRequest *request) {
-  //bool valueExists = false;
   bool unitExists = false;
-  int value=0;
+  bool gaugeNameExists = false;
+  bool minValueExists = false;
+  bool maxValueExists = false;
+  bool criticalValueExists = false;
+  bool frameNumberExists = false;
+  bool msbByteNumberExists = false;
+  bool lsbByteNumberExists = false;
   String unit = "";
+  String gaugeName = "";
+  int gaugeType = 0;
+  int minValue = 0;
+  int maxValue = 0;
+  int criticalValue = 0;
+  int frameNumber = 0;
+  int msbByteNumber = 0;
+  int lsbByteNumber = 0;
+
 for (size_t i = 0; i < request->params(); i++) {
     AsyncWebParameter *param = request->getParam(i);
-    // if(param->name()=="value"){
-    //   value=param->value().toInt();
-    //   valueExists = true;
-    // }
     if(param->name()=="unit"){
       unit=param->value();
       unitExists = true;
     }
+    if(param->name()=="gauge-type"){
+      gaugeType=param->value().toInt();
+    }
+    if(param->name()=="gauge-name"){
+      gaugeName=param->value();
+      gaugeNameExists = true;
+    }
+    if(param->name()=="min-value"){
+      minValue=param->value().toInt();
+      minValueExists = true;
+    }
+    if(param->name()=="max-value"){
+      maxValue=param->value().toInt();
+      maxValueExists = true;
+    }
+    if(param->name()=="critical-value"){
+      criticalValue=param->value().toInt();
+      criticalValueExists = true;
+    }
+    if(param->name()=="frame-number"){
+      frameNumber=param->value().toInt();
+      frameNumberExists = true;
+    }
+    if(param->name()=="byte-number-msb"){
+      msbByteNumber=param->value().toInt();
+      msbByteNumberExists = true;
+    }
+    if(param->name()=="byte-number-lsb"){
+      lsbByteNumber=param->value().toInt();
+      lsbByteNumberExists = true;
+    }
   }
-  if (unitExists) {
-    // int value = request->getParam("value")->value().toInt();
-    // String unit = request->getParam("unit")->value();
+  if (unitExists&&gaugeNameExists) 
+{
     // Create a new AnalogueGauge object and update it
     spedometer[spedometer_size] = new Gauge(&sprite1, 120, 120, 120, 100, 5, 220, unit);
     spedometer[spedometer_size]->init();
+    spedometer_name[spedometer_size] = gaugeName;
     spedometer[spedometer_size]->setBackgroundColor((uint16_t) rand());
     spedometer[spedometer_size]->setArcColors((uint16_t) rand());
     spedometer[spedometer_size]->setScaleColors((uint16_t) rand());
@@ -335,20 +407,39 @@ for (size_t i = 0; i < request->params(); i++) {
 void setup() {
   Serial.begin(115200);
   pinMode(34, INPUT_PULLDOWN);
+  pinMode(35, INPUT_PULLDOWN);
   tft.init();
   tft.setRotation(1);
   tft.fillScreen(BACKGROUNDCOLOR_AUDI);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Connecting to WiFi...");
+  if(digitalRead(34)==true){
+    String macAddress = WiFi.macAddress();
+    String _ssid = "Gauge" + macAddress.substring(macAddress.length()/2,macAddress.length()-1);
+    String _password = randomStringGenerator(8);
+    tft.setTextSize(2);
+    tft.drawString("Log in to config", 10, tft.height()/2-20);
+    tft.drawString(("SSID:" + _ssid), 0, tft.height()/2);
+    tft.drawString(("PASS:" + _password), 10, tft.height()/2+20);
+    WiFi.softAP("Gauge"+WiFi.macAddress(), password);
   }
-  Serial.println("Connected");
+  else{
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(1000);
+      Serial.println("Connecting to WiFi...");
+    }
+    Serial.println("Connected");
+  }
+  
+  
+
+  
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/add-gauge", HTTP_POST, handleAddGauge);
   server.on("/new-gauge", HTTP_GET, handleCreateNewGauge);
   server.on("/can-sniffer", HTTP_GET, handleCanSniffer);
+  server.on("/old-gauge", HTTP_GET, handleDeleteOldGauge);
+  // server.on("/delete-gauge", HTTP_POST, handleDeleteGauge);
 
   server.onNotFound(notFound);
   server.begin();
@@ -366,9 +457,13 @@ void setup() {
 
 //   lastEncoded = encoded; //store this value for next time
 // }
+unsigned long long timer;
+bool flag;
 
 void loop() 
 {
+ 
+
   if(spedometer_size==0){}
   else{
   for (size_t i = 0; i < 100; i++)

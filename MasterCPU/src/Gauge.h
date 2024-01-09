@@ -52,12 +52,13 @@ class Gauge{
         _sprite->setTextSize(_digitalGaugeFontSize);
         _sprite->setTextColor(_textColor,_backgroundColor);
         _sprite->drawString(String((int)this->_value),_cx,_cy);
+        _sprite->drawString(_unit,_cx,_cy+32);
     }
 
     void drawUnit(){
         _sprite->setTextFont(_unitGaugeFont);
         _sprite->setTextSize(_unitGaugeFontSize);
-        _sprite->drawString(_unit,_cx,_cy+32);
+        
     }
 
     void drawGauge(){
