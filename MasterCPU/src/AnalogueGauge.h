@@ -13,19 +13,18 @@
 
 class AnalogueGauge{
     private:
-    TFT_eSPI tft = TFT_eSPI();
-    TFT_eSprite sprite = TFT_eSprite(&tft);
-    int cx;
-    int cy;
-    int r;
-    int ir;
-    int n;
-    int angle;
-    int width;
-    int height;
-    int value;
-    String unit;
-    bool showDigitalValue;
+    TFT_eSprite * _sprite;
+    int _cx;
+    int _cy;
+    int _r;
+    int _ir;
+    int _n;
+    int _angle;
+    int _width;
+    int _height;
+    int _value;
+    String _unit;
+    bool _showDigitalValue;
 
     uint16_t backgroundColor, arcColors, scaleColors, textColor, needleColor;
 
@@ -46,42 +45,43 @@ class AnalogueGauge{
     uint16_t color2;
     
     void drawDigitalValue(){
-        sprite.setTextColor(textColor,backgroundColor);
-        sprite.drawString(String((int)this->value),cx,cy,7);
-        sprite.drawString(this->unit,cx,cy+32);
+        _sprite->setTextColor(textColor,backgroundColor);
+        _sprite->drawString(String((int)this->_value),_cx,_cy,7);
+        _sprite->drawString(this->_unit,_cx,_cy+32);
     }
 
     void drawGauge(){
-        sprite.drawSmoothArc(cx, cy, r-5, r-6, 30, 330, arcColors, backgroundColor);
+        _sprite->drawSmoothArc(_cx, _cy, _r-5, _r-6, 30, 330, arcColors, backgroundColor);
 
         for(int i=0;i<26;i++){
             if(i<20) {color1=backgroundColor; color2=scaleColors;} else {color1=REDCOLOR_AUDI; color2=REDCOLOR_AUDI;}
 
         if(i%2==0) {
-            sprite.drawWedgeLine(x[i*12],y[i*12],px[i*12],py[i*12],2,1,color1);
-            sprite.setTextColor(color2,backgroundColor);
-            sprite.drawString(String(i*10),lx[i*12],ly[i*12]);
+            _sprite->drawWedgeLine(x[i*12],y[i*12],px[i*12],py[i*12],2,1,color1);
+            _sprite->setTextColor(color2,backgroundColor);
+            _sprite->drawString(String(i*10),lx[i*12],ly[i*12]);
         }else
-            sprite.drawWedgeLine(x[i*12],y[i*12],px[i*12],py[i*12],1,1,color2);
+            _sprite->drawWedgeLine(x[i*12],y[i*12],px[i*12],py[i*12],1,1,color2);
         }
     }
 
     void drawNeedle(){
-        sA=this->value*1.2;
-        sprite.drawWedgeLine(px[(int)sA],py[(int)sA],nx[(int)sA],ny[(int)sA],2,2,needleColor);
+        sA=this->_value*1.2;
+        _sprite->drawWedgeLine(px[(int)sA],py[(int)sA],nx[(int)sA],ny[(int)sA],2,2,needleColor);
     }
 
     public:
-    
-    AnalogueGauge(int xCenter, int yCenter, int radius, int innerRadius, int width, int height, String unit,  bool showDigitalValue = true){
-        cx = xCenter;
-        cy = yCenter;
-        r = radius;
-        ir = innerRadius;
-        width = width;
-        height = height;
-        this->showDigitalValue = showDigitalValue;
-        this->unit = unit;
+    AnalogueGauge(TFT_eSprite * sprite, int xCenter, int yCenter, int radius, int innerRadius, int width, int height, String _unit,  bool showDigitalValue = true){
+        
+        _sprite = sprite;
+        _cx = xCenter;
+        _cy = yCenter;
+        _r = radius;
+        _ir = innerRadius;
+        _width = width;
+        _height = height;
+        this->_showDigitalValue = _showDigitalValue;
+        this->_unit = _unit;
         this->backgroundColor = BACKGROUNDCOLOR_AUDI;
         this->arcColors=TFT_SILVER;
         this->scaleColors=WHITECOLOR_AUDI;
@@ -90,26 +90,23 @@ class AnalogueGauge{
     }
 
     void init(){
-        tft.init();
-        tft.setRotation(1);
-        tft.fillScreen(BACKGROUNDCOLOR_AUDI);
-        sprite.createSprite(240,220);
-        sprite.setSwapBytes(true);
-        sprite.setTextDatum(4);
-        sprite.setTextColor(TFT_WHITE,BACKGROUNDCOLOR_AUDI);
-        sprite.setTextDatum(4);
+        _sprite->createSprite(240,220);
+        _sprite->setSwapBytes(true);
+        _sprite->setTextDatum(4);
+        _sprite->setTextColor(TFT_WHITE,BACKGROUNDCOLOR_AUDI);
+        _sprite->setTextDatum(4);
         int a=120;
         for(int i=0;i<360;i++)
         {
-            x[i]=((r-10)*cos(rad*a))+cx;
-            y[i]=((r-10)*sin(rad*a))+cy;
+            x[i]=((_r-10)*cos(rad*a))+_cx;
+            y[i]=((_r-10)*sin(rad*a))+_cy;
             
-            lx[i]=((r-24)*cos(rad*a))+cx;
-            ly[i]=((r-24)*sin(rad*a))+cy;
-            px[i]=((r-14)*cos(rad*a))+cx;
-            py[i]=((r-14)*sin(rad*a))+cy;
-            nx[i]=((r-36)*cos(rad*a))+cx;
-            ny[i]=((r-36)*sin(rad*a))+cy;
+            lx[i]=((_r-24)*cos(rad*a))+_cx;
+            ly[i]=((_r-24)*sin(rad*a))+_cy;
+            px[i]=((_r-14)*cos(rad*a))+_cx;
+            py[i]=((_r-14)*sin(rad*a))+_cy;
+            nx[i]=((_r-36)*cos(rad*a))+_cx;
+            ny[i]=((_r-36)*sin(rad*a))+_cy;
             a++;
                 if(a==360)
                 a=0;
@@ -117,36 +114,36 @@ class AnalogueGauge{
     }
     
     void update(){
-        sprite.fillSprite(BACKGROUNDCOLOR_AUDI);
+        _sprite->fillSprite(backgroundColor);
         drawGauge();
         drawNeedle();
-        if (showDigitalValue)
+        if (_showDigitalValue)
         {
             drawDigitalValue();
         }
-        sprite.pushSprite(0,0);
+        _sprite->pushSprite(0,0);
     }
 
-    void update(int value){
-        sprite.fillSprite(BACKGROUNDCOLOR_AUDI);
-        sprite.drawSmoothArc(cx, cy, r-5, r-6, 30, 330, TFT_WHITE, BACKGROUNDCOLOR_AUDI);
+    void update(int _value){
+        _sprite->fillSprite(BACKGROUNDCOLOR_AUDI);
+        _sprite->drawSmoothArc(_cx, _cy, _r-5, _r-6, 30, 330, TFT_WHITE, BACKGROUNDCOLOR_AUDI);
 
             for(int i=0;i<26;i++){
             if(i<20) {color1=BACKGROUNDCOLOR_AUDI; color2=TFT_WHITE;} else {color1=REDCOLOR_AUDI; color2=REDCOLOR_AUDI;}
 
         if(i%2==0) {
-            sprite.drawWedgeLine(x[i*12],y[i*12],px[i*12],py[i*12],2,1,color1);
-            sprite.setTextColor(color2,BACKGROUNDCOLOR_AUDI);
-            sprite.drawString(String(i*10),lx[i*12],ly[i*12]);
+            _sprite->drawWedgeLine(x[i*12],y[i*12],px[i*12],py[i*12],2,1,color1);
+            _sprite->setTextColor(color2,BACKGROUNDCOLOR_AUDI);
+            _sprite->drawString(String(i*10),lx[i*12],ly[i*12]);
         }else
-            sprite.drawWedgeLine(x[i*12],y[i*12],px[i*12],py[i*12],1,1,color2);
+            _sprite->drawWedgeLine(x[i*12],y[i*12],px[i*12],py[i*12],1,1,color2);
         }
-        sA=value*1.2;
-        sprite.drawWedgeLine(px[(int)sA],py[(int)sA],nx[(int)sA],ny[(int)sA],2,2,NEEDLECOLOR_AUDI);
-        sprite.setTextColor(TFT_WHITE,BACKGROUNDCOLOR_AUDI);
-        sprite.drawString(String((int)value),cx,cy,4);
-        sprite.drawString("unit",cx,cy+16);
-        sprite.pushSprite(0,0);
+        sA=_value*1.2;
+        _sprite->drawWedgeLine(px[(int)sA],py[(int)sA],nx[(int)sA],ny[(int)sA],2,2,NEEDLECOLOR_AUDI);
+        _sprite->setTextColor(TFT_WHITE,BACKGROUNDCOLOR_AUDI);
+        _sprite->drawString(String((int)_value),_cx,_cy,4);
+        _sprite->drawString("_unit",_cx,_cy+16);
+        _sprite->pushSprite(0,0);
     }
     void setBackgroundColor(uint16_t color){
         backgroundColor = color;
@@ -164,12 +161,12 @@ class AnalogueGauge{
         needleColor = color;
     }
     void setUnit(char * unit){
-        unit = unit;
+        _unit = unit;
     }
     void setShowDigitalValue(bool show){
-        showDigitalValue = show;
+        _showDigitalValue = show;
     }
     void setValue(int value){
-        this->value = value;
+        _value = value;
     }
 };
