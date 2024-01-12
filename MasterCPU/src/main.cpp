@@ -1,22 +1,35 @@
-// #include <CanPacketManager.h>
+//#include <CanPacketManager.h>
 // #include "SPI.h"
-#include <ESPAsyncWebServer.h>
+#include <EEPROM.h>
+#include <webSite.h>
 #include <Gauge.h>
-
+#include <LittleFS.h>
+#include <simCAN.h>
+// #include <ArduinoJson.h>
+#define FORMAT 0
+#define EEPROM_SIZE 512
+#define RANDOM_CAN 1
 const char *ssid = "FunBox3-EA22";
 const char *password = "9LYXSMWWKFN7";
 const char *characters[] = {"0123456789",
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
         "abcdefghijklmnopqrstuvwxyz"};
+
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite sprite1 = TFT_eSprite(&tft);
-AsyncWebServer server(80);
-int j=0;
-static int spedometer_size = 0;
-Gauge * spedometer[10];
-String spedometer_name[10];
 
-int speedAngle = 0;
+int gaugedatasize = 40;
+
+uint8_t j=0;
+static int spedometer_size = 0;
+Gauge * spedometer[4];
+String spedometer_name[4];
+uint8_t speedAngle = 0;
+
+packet_t packet;
+
+uint32_t timer;
+bool flag; 
 
 String randomStringGenerator(int length){
   String result = "";
@@ -36,294 +49,103 @@ String randomStringGenerator(int length){
   return result;
 }
 
-void notFound(AsyncWebServerRequest *request) {
-  String content = "<html lang=\"en\">"; 
-content += "<head>"; 
-content += "<meta charset=\"UTF-8\">"; 
-content += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"; 
-content += "<title>404 NOT FOUND</title>"; 
-content += "</head>"; 
-content += "<a href='/'><input type='button' value='Home'></a>";  
-content += "<body>"; 
-content += "<h1>404 NOT FOUND</h1>"; 
-content += "</body>"; 
-content += "</html>";
-
-request->send(404, "text/html", content);
-}
-void handleCanSniffer(AsyncWebServerRequest * request){
-String content =  "<!DOCTYPE html>"; 
-content += "<html lang=\"en\">"; 
-content += "<head>"; 
-content += "<meta charset=\"UTF-8\">"; 
-content += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"; 
-content += "<title>CAN BUS Data Display</title>"; 
-content += "<style>"; 
-content += "body {"; 
-content += "background-color: #1e1e1e;"; 
-content += "color: #ffffff;"; 
-content += "font-family: Arial, sans-serif;"; 
-content += "margin: 0;"; 
-content += "padding: 0;"; 
-content += "display: flex;"; 
-content += "justify-content: center;"; 
-content += "align-items: center;"; 
-content += "height: 100vh;"; 
-content += "}"; 
-content += "iframe {"; 
-content += "width: 100%;"; 
-content += "height: 100%;"; 
-content += "border: none;"; 
-content += "}"; 
-content += "table {"; 
-content += "width: 100%;"; 
-content += "border-collapse: collapse;"; 
-content += "margin: 20px;"; 
-content += "background-color: #2d2d2d;"; 
-content += "color: #ffffff;"; 
-content += "}"; 
-content += "table, th, td {"; 
-content += "border: 1px solid #ffffff;"; 
-content += "}"; 
-content += "th, td {"; 
-content += "padding: 10px;"; 
-content += "text-align: left;"; 
-content += "transition: background-color 1s;"; 
-content += "}"; 
-content += "th, td.changed {"; 
-content += "background-color: #ffcc00; /* Kolor tła dla zmienionych danych */"; 
-content += "}"; 
-content += "#filter-input, #display-mode {"; 
-content += "width: 100%;"; 
-content += "padding: 10px;"; 
-content += "background-color: #2d2d2d;"; 
-content += "color: #ffffff;"; 
-content += "border: 1px solid #ffffff;"; 
-content += "margin-bottom: 10px;"; 
-content += "}"; 
-content += "</style>"; 
-content += "</head>"; 
-content += "<body>"; 
-content += "<a href='/'><input type='button' value='Home'></a>";  
-content += "<div>"; 
-content += "<label for=\"display-mode\">Display Mode:</label>"; 
-content += "<select id=\"display-mode\" onchange=\"changeDisplayMode()\">"; 
-content += "<option value=\"hex\">Hex</option>"; 
-content += "<option value=\"dec\">Dec</option>"; 
-content += "<option value=\"bin\">Bin</option>"; 
-content += "</select>"; 
-content += "</div>"; 
-content += "<div>"; 
-content += "<label for=\"filter-input\">Filter by ID:</label>"; 
-content += "<input type=\"text\" id=\"filter-input\" oninput=\"filterData()\">"; 
-content += "</div>"; 
-content += "<table id=\"data-table\">"; 
-content += "<thead>"; 
-content += "<tr>"; 
-content += "<th>ID</th>"; 
-content += "<th>RTR</th>"; 
-content += "<th>IDE</th>"; 
-content += "<th>D0</th>"; 
-content += "<th>D1</th>"; 
-content += "<th>D2</th>"; 
-content += "<th>D3</th>"; 
-content += "<th>D4</th>"; 
-content += "<th>D5</th>"; 
-content += "<th>D6</th>"; 
-content += "<th>D7</th>"; 
-content += "</tr>"; 
-content += "</thead>"; 
-content += "<tbody>"; 
-content += "</tbody>"; 
-content += "</table>"; 
-content += "<script>"; 
-content += "var displayMode = \"hex\";"; 
-content += "function changeDisplayMode() {"; 
-content += "displayMode = document.getElementById(\"display-mode\").value;"; 
-content += "filterData();"; 
-content += "}"; 
-content += "function updateTable(id, rtr, ide, data) {"; 
-content += "var filterValue = document.getElementById(\"filter-input\").value.toLowerCase();"; 
-content += "if (id.toString().toLowerCase().includes(filterValue)) {"; 
-content += "var table = document.getElementById(\"data-table\");"; 
-content += "var tbody = table.getElementsByTagName(\"tbody\")[0];"; 
-content += "var rows = tbody.getElementsByTagName(\"tr\");"; 
-content += "for (var i = 0; i < rows.length; i++) {"; 
-content += "var cells = rows[i].getElementsByTagName(\"td\");"; 
-content += "if (cells[0].innerHTML === id.toString()) {"; 
-content += "cells[1].innerHTML = rtr;"; 
-content += "cells[2].innerHTML = ide;"; 
-content += "for (var j = 0; j < data.length; j++) {"; 
-content += "var oldValue = cells[j + 3].innerHTML;"; 
-content += "cells[j + 3].innerHTML = formatData([data[j]]);"; 
-content += "if (oldValue !== cells[j + 3].innerHTML) {"; 
-content += "cells[j + 3].classList.add(\"changed\");"; 
-content += "setTimeout(function(cell) {"; 
-content += "cell.classList.remove(\"changed\");"; 
-content += "}, 1000, cells[j + 3]);"; 
-content += "}"; 
-content += "}"; 
-content += "return;"; 
-content += "}"; 
-content += "}"; 
-content += "var newRow = tbody.insertRow();"; 
-content += "var cell1 = newRow.insertCell(0);"; 
-content += "var cell2 = newRow.insertCell(1);"; 
-content += "var cell3 = newRow.insertCell(2);"; 
-content += "cell1.innerHTML = id;"; 
-content += "cell2.innerHTML = rtr;"; 
-content += "cell3.innerHTML = ide;"; 
-content += "for (var j = 0; j < data.length; j++) {"; 
-content += "var cell = newRow.insertCell(j + 3);"; 
-content += "cell.innerHTML = formatData([data[j]]);"; 
-content += "}"; 
-content += "}"; 
-content += "}"; 
-content += "function byteArrayToString(bytes) {"; 
-content += "var hexString = Array.from(bytes, function(byte) {"; 
-content += "return ('0' + (byte & 0xFF).toString(16)).slice(-2);"; 
-content += "}).join(' ');"; 
-content += "var decString = bytes.join(' ');"; 
-content += "var binString = Array.from(bytes, function(byte) {"; 
-content += "return ('00000000' + byte.toString(2)).slice(-8);"; 
-content += "}).join(' ');"; 
-content += "return { hex: hexString, dec: decString, bin: binString };"; 
-content += "}"; 
-content += "function formatData(data) {"; 
-content += "var dataString = byteArrayToString(data);"; 
-content += "switch (displayMode) {"; 
-content += "case \"hex\":"; 
-content += "return dataString.hex;"; 
-content += "case \"dec\":"; 
-content += "return dataString.dec;"; 
-content += "case \"bin\":"; 
-content += "return dataString.bin;"; 
-content += "default:"; 
-content += "return dataString.hex;"; 
-content += "}"; 
-content += "}"; 
-content += "function filterData() {"; 
-content += "var filterValue = document.getElementById(\"filter-input\").value.toLowerCase();"; 
-content += "var table = document.getElementById(\"data-table\");"; 
-content += "var tbody = table.getElementsByTagName(\"tbody\")[0];"; 
-content += "var rows = tbody.getElementsByTagName(\"tr\");"; 
-content += "for (var i = 0; i < rows.length; i++) {"; 
-content += "var cells = rows[i].getElementsByTagName(\"td\");"; 
-content += "var id = cells[0].innerHTML.toLowerCase();"; 
-content += "rows[i].style.display = id.includes(filterValue) ? \"\" : \"none\";"; 
-content += "}"; 
-content += "}"; 
-content += "</script>"; 
-content += "</body>"; 
-content += "</html>";
-request->send(200, "text/html", content);
-}
 void handleDeleteOldGauge(AsyncWebServerRequest * request){
-  String content = F("<!DOCTYPE html>\n<html lang='en'>\n<head>\n");
-  // Add other head elements here
-  content += F("</head>\n<body>\n<h2>Object List</h2>\n<ul id='objectList'>\n");
+  String content = F("<!DOCTYPE html>\n<html lang='en'>\n<head>\n<style>\n");
+  content +=".button {";
+  content +="  border: none;";
+  content +="  color: white;";
+  content +="  padding: 15px 32px;";
+  content +="  text-align: center;";
+  content +="  text-decoration: none;";
+  content +="  display: inline-block;";
+  content +="  font-size: 16px;";
+  content +="  margin: 4px 2px;";
+  content +="  cursor: pointer;";
+  content +="}";
+  content +=".button1 {background-color: #008CBA;}";
+  content +="</style>";
 
+  content += F("<a href='/'><input type='button' class='button button1' value='Home'></a>\n<h2>Object List</h2>\n<ul id='objectList'>\n");
+  
   for (size_t i = 0; i < spedometer_size; ++i) {
-    content += "<li>" + String(spedometer_name[i]) + "<input type='submit' id=" + i + " value='Delete'>";
+    content += "<li id='object" + String(i) + "'>Name:" + String(spedometer[i]->getName()) + " Frame number" + String(spedometer[i]->getFrame()) + 
+               "<form action='/delete-gauge' method='post'>"+
+               "<input type='hidden' id='" + String(spedometer[i]->getName()) + "' value='" + String(i) + "' name='" + String(spedometer[i]->getName()) + 
+               "' class='setting-input'>" + 
+               "<input type='submit' class='button button1' value='Delete'></li></form>";
   }
 
-  content += F("</ul>\n<script>\nfunction deleteObject(id) {\n");
-  content += F("  var listItem = document.getElementById('object' + id);\n");
-  content += F("  listItem.parentNode.removeChild(listItem);\n");
-  content += F("}\n</script>\n</body>\n</html>");
+  content += F("</ul>\n</body>\n</html>");
+
   request->send(200, "text/html", content);
-}
-void handleCreateNewGauge(AsyncWebServerRequest *request){
-String content = "<!-- settings.html -->";
-content += "<!DOCTYPE html>"; 
-content += "<html lang='en'>"; 
-content += "<head>"; 
-content += "<meta charset='UTF-8'>"; 
-content += "<meta name='viewport' content='width=device-width, initial-scale=1.0'>"; 
-content += "<title>Gauge Management</title>"; 
-content += "<style>"; 
-content += "body {"; 
-content += "background-color: #1e1e1e;"; 
-content += "color: #ffffff;"; 
-content += "font-family: Arial, sans-serif;"; 
-content += "margin: 0;"; 
-content += "padding: 20px;"; 
-content += "}"; 
-content += "h2 {"; 
-content += "margin-bottom: 20px;"; 
-content += "}"; 
-content += "label {"; 
-content += "display: block;"; 
-content += "margin-bottom: 10px;"; 
-content += "}"; 
-content += ".setting-input {"; 
-content += "width: 100%;"; 
-content += "padding: 10px;"; 
-content += "background-color: #2d2d2d;"; 
-content += "color: #ffffff;"; 
-content += "border: 1px solid #ffffff;"; 
-content += "margin-bottom: 10px;"; 
-content += "}"; 
-content += "</style>"; 
-content += "</head>"; 
-content += "<body>"; 
-content += "<a href='/'><input type='button' value='Home'></a>";  
-content += "<h2>Create New Gauge Face</h2>"; 
-content += "<label for='gauge-type'>Gauge Type</label>"; 
-content += "<select id='gauge-type' name='gauge-type' class='setting-input'>"; 
-content += "<option value='1'>Analogue Gauge</option>"; 
-content += "<option value='2'>Digital Gauge</option>"; 
-content += "</select>"; 
-content += "<form action='/add-gauge' method='post'>"; 
-content += "<label for='gauge-name'>Gauge Name:</label>"; 
-content += "<input type='text' id='gauge-name' name='gauge-name' class='setting-input'>"; 
-content += "<label for='min-value'>Minimum Value:</label>"; 
-content += "<input type='number' id='min-value' name='min-value' class='setting-input' value='0'>"; 
-content += "<label for='max-value'>Maximum Value:</label>"; 
-content += "<input type='number' id='max-value' name='max-value' class='setting-input' value='240'>"; 
-content += "<label for='critical-value'>Critical Value:</label>"; 
-content += "<input type='number' id='critical-value' name='critical-value' class='setting-input'>"; 
-content += "<label for='unit'>Unit:</label>"; 
-content += "<input type='text' id='unit' name='unit' class='setting-input'><br>"; 
-content += "<label for='frame-number'>Frame Number:</label>"; 
-content += "<input type='number' id='frame-number' name='frame-number' class='setting-input'>"; 
-content += "<label for='byte-number'>MSB Byte Number:</label>"; 
-content += "<input type='number' id='byte-number-msb' name='byte-number-msb' class='setting-input'>"; 
-content += "<label for='byte-number'>LSB Byte Number:</label>"; 
-content += "<input type='number' id='byte-number-lsb' name='byte-number-lsb' class='setting-input'>"; 
-content += "<label for='value-size'>Value Size:</label>"; 
-content += "<input type='submit' value='Add Gauge'>"; 
-content += "</form>"; 
-content += "</body>"; 
-content += "</html>";
-request->send(200, "text/html", content);
 }
 
-void handleRoot(AsyncWebServerRequest *request) {
-  String content = "<!DOCTYPE html>"; 
-content += "<html lang=\"en\">"; 
-content += "<head>"; 
-content += "<meta charset=\"UTF-8\">"; 
-content += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"; 
-content += "<title>Main HTML</title>"; 
-content += "<style>"; 
-content += "body {"; 
-content += "background-color: #1e1e1e;";
-content += "color: #ffffff;";
-content += "margin: center;"; 
-content += "padding: 0;"; 
-content += "font-family: Arial, sans-serif;"; 
-content += "}"; 
-content += "</style>"; 
-content += "</head>"; 
-content += "<body>"; 
-content += "<a href='/new-gauge'><input type='button' value='Create New Gauge Face'></a>"; 
-content += "<a href='/old-gauge'><input type='button' value='Delete Gauge Faces'></a>"; 
-content += "<a href='/settings'><input type='button' value='Settings'></a>"; 
-content += "<a href='/can-sniffer'><input type='button' value='CanSniffer'></a>";  
-content += "</body>"; 
-content += "</html>";
-  request->send(200, "text/html", content);
+void handleDeleteGauge(AsyncWebServerRequest * request){
+  for (size_t i = 0; i < request->params(); i++) {
+    AsyncWebParameter *param = request->getParam(i);
+    Serial.println("Param Name");
+    Serial.println(param->name());
+    Serial.println("Param Value");
+    Serial.println(param->value());
+    Serial.println(spedometer[param->value().toInt()]->getName());
+    Serial.println(param->name());
+    if (param->value().toInt() >= 0 && param->value().toInt() < spedometer_size) {
+    if(spedometer[param->value().toInt()]->getName() == param->name()){
+        int id = param->value().toInt();
+        delete spedometer[id];
+      
+      for (size_t j = id; j < spedometer_size - 1; ++j) {
+        spedometer[j] = spedometer[j + 1];
+      }
+      int eepromAddress = 2 + (gaugedatasize*id);
+      
+      int toMove = spedometer_size-(id+1);
+      for (size_t i = 0; i < gaugedatasize; i++)
+      {
+        switch (toMove)
+        {
+        case 1:
+          EEPROM.write(eepromAddress, EEPROM.read(eepromAddress+gaugedatasize));
+          EEPROM.write(eepromAddress+gaugedatasize, 0);
+          break;
+        case 2:
+          EEPROM.write(eepromAddress, EEPROM.read(eepromAddress+gaugedatasize));
+          EEPROM.write(eepromAddress+gaugedatasize, EEPROM.read(eepromAddress+(2*gaugedatasize)));
+          EEPROM.write(eepromAddress+(2*gaugedatasize), 0);
+          break;
+        case 3:
+          EEPROM.write(eepromAddress, EEPROM.read(eepromAddress+gaugedatasize));
+          EEPROM.write(eepromAddress+gaugedatasize, EEPROM.read(eepromAddress+(2*gaugedatasize)));
+          EEPROM.write(eepromAddress+(2*gaugedatasize), EEPROM.read(eepromAddress+(3*gaugedatasize)));
+          EEPROM.write(eepromAddress+(3*gaugedatasize), 0);
+          break;
+        case 4:
+          EEPROM.write(eepromAddress, EEPROM.read(eepromAddress+gaugedatasize));
+          EEPROM.write(eepromAddress+gaugedatasize, EEPROM.read(eepromAddress+(2*gaugedatasize)));
+          EEPROM.write(eepromAddress+(2*gaugedatasize), EEPROM.read(eepromAddress+(3*gaugedatasize)));
+          EEPROM.write(eepromAddress+(3*gaugedatasize), EEPROM.read(eepromAddress+(4*gaugedatasize)));
+          EEPROM.write(eepromAddress+(4*gaugedatasize), 0);
+          break;
+        default:
+          EEPROM.write(eepromAddress,0);
+          break;
+        }
+        eepromAddress++;
+      }
+      
+      // Decrement the array size
+      spedometer_size--;
+      EEPROM.write(1, spedometer_size);
+      EEPROM.commit();
+
+      // Respond to the client or perform any other necessary actions
+      request->send(200, "text/plain", "Object deleted successfully.");
+    } else {
+      // Invalid id, respond with an error
+      request->send(400, "text/plain", "Invalid id.");
+    }
+    }
+  }
 }
 
 void handleAddGauge(AsyncWebServerRequest *request) {
@@ -383,43 +205,230 @@ for (size_t i = 0; i < request->params(); i++) {
       lsbByteNumberExists = true;
     }
   }
-  if (unitExists&&gaugeNameExists) 
+  if (unitExists&&gaugeNameExists&&frameNumberExists&&spedometer_size<4) 
 {
     // Create a new AnalogueGauge object and update it
-    spedometer[spedometer_size] = new Gauge(&sprite1, 120, 120, 120, 100, 5, 220, unit);
-    spedometer[spedometer_size]->init();
-    spedometer_name[spedometer_size] = gaugeName;
+    try
+    {
+      spedometer[spedometer_size] = new Gauge(&sprite1, &tft, unit, true);
+    }
+    catch(const std::exception& e)
+    {
+      Serial.println(e.what());
+    }
+    int eepromAddress = 2 + (gaugedatasize*spedometer_size);
+    
+    spedometer[spedometer_size]->setName(gaugeName);
     spedometer[spedometer_size]->setBackgroundColor((uint16_t) rand());
     spedometer[spedometer_size]->setArcColors((uint16_t) rand());
     spedometer[spedometer_size]->setScaleColors((uint16_t) rand());
     spedometer[spedometer_size]->setTextColor(TFT_WHITE);
     spedometer[spedometer_size]->setNeedleColor((uint16_t) rand());
+    spedometer[spedometer_size]->setFrame(frameNumber);
+    spedometer[spedometer_size]->setByteMSB(msbByteNumber);
+    spedometer[spedometer_size]->setByteLSB(lsbByteNumber);
+    spedometer[spedometer_size]->init();
+    for(char i : gaugeName){
+      EEPROM.write(eepromAddress, i);
+      eepromAddress++;
+    }
+    if(gaugeName.length()-1<10){
+      for (size_t i = 0; i < 10-gaugeName.length(); i++)
+      {
+        EEPROM.write(eepromAddress, 0);
+        eepromAddress++;
+      }
+    }
+    EEPROM.write(eepromAddress, frameNumber>>8);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, frameNumber&0xFF);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, msbByteNumber);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, lsbByteNumber);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getBackgroundColor()>>8);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getBackgroundColor()&0xFF);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getArcColors()>>8);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getArcColors()&0xFF);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getScaleColors()>>8);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getScaleColors()&0xFF);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getTextColor()>>8);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getTextColor()&0xFF);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getNeedleColor()>>8);
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getNeedleColor()&0xFF);
+    eepromAddress++;
+    for(char i : unit){
+      EEPROM.write(eepromAddress, i);
+      eepromAddress++;
+    }
+    if(unit.length()-1<10){
+      for (size_t i = 0; i < 10-unit.length(); i++)
+      {
+        EEPROM.write(eepromAddress, 0);
+        eepromAddress++;
+      }
+    }
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getShowDigitalValue());
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getAnalogueGaugeFont());
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getDigitalGaugeFont());
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getUnitGaugeFont());
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getAnalogueGaugeFontSize());
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getDigitalGaugeFontSize());
+    eepromAddress++;
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getUnitGaugeFontSize());
+    Serial.print(eepromAddress);
     spedometer_size++;
-    
+    EEPROM.write(1, spedometer_size);
+    EEPROM.commit();
     request->send(200, "text/plain", "Gauge added successfully");
-  } else {
+  } 
+  else if (spedometer_size==4)
+  {
+    request->send(400, "text/plain", "To much gauges");
+  }
+   {
     request->send(400, "text/plain", "Invalid parameters");
   }
 }
 
+void formatEEPROM(){
+  #if !FORMAT
+  if(EEPROM.read(0)!=0){
+    Serial.print("Formatuje");
+    for (size_t i = 0; i < EEPROM_SIZE; i++)
+    {
+      Serial.print(".");
+      EEPROM.write(i,0);
+    }
+    EEPROM.commit();
+  }
+  #else
+    Serial.print("Formatuje");
+    for (size_t i = 0; i < EEPROM_SIZE; i++)
+    {
+      Serial.print(".");
+      EEPROM.write(i,0);
+    }
+    EEPROM.commit();
+  #endif
+}
+void runGaugesFromEeprom(){
+  int eepromAddress = 0;
+  if(EEPROM.read(1)!=0)
+  for (size_t i = 0; i < EEPROM.read(1); i++)
+  {
+    spedometer[i] = new Gauge(&sprite1, &tft);
+    eepromAddress = 2 + (i*gaugedatasize);
+    String text = "";
+    for (size_t i = 0; i < 10; i++)
+    {
+      if(EEPROM.read(eepromAddress)>0)
+      text += (char)EEPROM.read(eepromAddress);
+      eepromAddress++;
+    }
+    spedometer[i]->setName(text);
+    spedometer[i]->setFrame((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
+    eepromAddress++;
+    spedometer[i]->setByteMSB(EEPROM.read(eepromAddress));
+    eepromAddress++;
+    spedometer[i]->setByteLSB(EEPROM.read(eepromAddress));
+    eepromAddress++;
+    spedometer[i]->setBackgroundColor((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
+    eepromAddress++;
+    spedometer[i]->setArcColors((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
+    eepromAddress++;
+    spedometer[i]->setScaleColors((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
+    eepromAddress++;
+    spedometer[i]->setTextColor((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
+    eepromAddress++;
+    spedometer[i]->setNeedleColor((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
+    eepromAddress++;
+    text="";
+    for (size_t i = 0; i < 10; i++)
+    {
+      if(EEPROM.read(eepromAddress)>0)
+      text += (char)EEPROM.read(eepromAddress);
+      eepromAddress++;
+    }
+    spedometer[i]->setUnit(text);
+    spedometer[i]->setShowDigitalValue(EEPROM.read(eepromAddress)&0x01);
+    eepromAddress++;
+    spedometer[i]->setAnalogueGaugeFont(EEPROM.read(eepromAddress));
+    eepromAddress++;
+    spedometer[i]->setDigitalGaugeFont(EEPROM.read(eepromAddress));
+    eepromAddress++;
+    spedometer[i]->setUnitGaugeFont(EEPROM.read(eepromAddress));
+    eepromAddress++;
+    spedometer[i]->setAnalogueGaugeFontSize(EEPROM.read(eepromAddress));
+    eepromAddress++;
+    spedometer[i]->setDigitalGaugeFontSize(EEPROM.read(eepromAddress));
+    eepromAddress++;
+    spedometer[i]->setUnitGaugeFontSize(EEPROM.read(eepromAddress));
+    Serial.print(eepromAddress);
+    eepromAddress++;
+    spedometer[i]->init();
+    spedometer_size++;
+  }
+  
+}
 
-
-void setup() {
-  Serial.begin(115200);
-  pinMode(34, INPUT_PULLDOWN);
-  pinMode(35, INPUT_PULLDOWN);
-  tft.init();
-  tft.setRotation(1);
-  tft.fillScreen(BACKGROUNDCOLOR_AUDI);
-  if(digitalRead(34)==true){
-    String macAddress = WiFi.macAddress();
-    String _ssid = "Gauge" + macAddress.substring(macAddress.length()/2,macAddress.length()-1);
-    String _password = randomStringGenerator(8);
-    tft.setTextSize(2);
-    tft.drawString("Log in to config", 10, tft.height()/2-20);
-    tft.drawString(("SSID:" + _ssid), 0, tft.height()/2);
-    tft.drawString(("PASS:" + _password), 10, tft.height()/2+20);
-    WiFi.softAP("Gauge"+WiFi.macAddress(), password);
+void wifiInit(uint8_t pin){
+  if(digitalRead(pin)==true){
+    timer = millis();
+    while(digitalRead(pin)==true){
+      unsigned long remain = millis() - timer;
+      if(remain%1000==0)
+        tft.fillScreen(BACKGROUNDCOLOR_AUDI);
+        tft.setTextSize(1);
+        tft.drawString("Initialising config mode in:", 10, tft.height()/2);
+        tft.drawString(String((int)(5000-remain)/100)+"s", tft.width()/2, tft.height()/2+20);
+        if(remain>5000){
+          tft.drawString("Release to enter config mode", 10, tft.height()/2);
+          while (digitalRead(34)==true)
+          {}
+        }
+    };
+    if(millis()-timer>5000){
+      String macAddress = WiFi.macAddress();
+      macAddress.remove(0,9);
+      macAddress.replace(":","");
+      macAddress.toLowerCase();
+      String _ssid = "Gauge-" + macAddress;
+      String _password = randomStringGenerator(8);
+      tft.setTextSize(2);
+      tft.fillScreen(BACKGROUNDCOLOR_AUDI);
+      tft.drawString("Log in to config", 20, tft.height()/2-40);
+      tft.drawString(("SSID:" + _ssid), 10, tft.height()/2-20);
+      tft.drawString(("PASS:" + _password), 0, tft.height()/2);
+      
+      WiFi.softAP(ssid, _password);
+      IPAddress local_IP(192, 168, 1, 1);
+      IPAddress gateway(192, 168, 1, 1);
+      IPAddress subnet(255, 255, 255, 0);
+      WiFi.config(local_IP, gateway, subnet);
+      delay(100);
+      tft.drawString(("IP:" + WiFi.localIP().toString()), 10, tft.height()/2+20);
+      tft.drawString("Press to exit config mode", 20, tft.height()/2+40);
+      while (digitalRead(pin)==false)
+      {
+        delay(100);
+      }
+    }
   }
   else{
     WiFi.begin(ssid, password);
@@ -428,62 +437,138 @@ void setup() {
       Serial.println("Connecting to WiFi...");
     }
     Serial.println("Connected");
+    
   }
-  
-  
+}
 
-  
+void onCANReceive(int packetSize){
+  packet.id = CAN.packetId();
+  packet.rtr = CAN.packetRtr() ? 1 : 0;
+  packet.ide = CAN.packetExtended() ? 1 : 0;
+  packet.dlc = CAN.packetDlc();
+  byte i = 0;
+  while (CAN.available()) {
+    packet.dataArray[i++] = CAN.read();
+    if (i >= (sizeof(packet.dataArray) / (sizeof(packet.dataArray[0])))) {
+      break;
+    }
+  }
+}
 
+void canRun(uint32_t canSpeed=500E3){
+#if RANDOM_CAN == 1
+  randomSeed(12345);
+  Serial.println("randomCAN Started");
+#else
+  if (!CAN.begin(canSpeed)) {
+    Serial.println("Starting CAN failed!");
+    while (1);
+  }
+  // register the receive callback
+  CAN.onReceive(onCANReceive);
+  Serial.println("CAN RX TX Started");
+#endif
+}
+
+void setup() {
+  Serial.begin(115200);
+  EEPROM.begin(EEPROM_SIZE);
+  pinMode(34, INPUT_PULLDOWN);
+  tft.init();
+  tft.setRotation(1);
+  tft.fillScreen(BACKGROUNDCOLOR_AUDI);
+  // LittleFS.begin(true);
+  formatEEPROM();
+  
+  
+  
+  wifiInit(34);
+  tft.fillScreen(BACKGROUNDCOLOR_AUDI);
+  runGaugesFromEeprom();
+  canRun();
+  CAN.onReceive(onCANReceive);
   server.on("/", HTTP_GET, handleRoot);
   server.on("/add-gauge", HTTP_POST, handleAddGauge);
   server.on("/new-gauge", HTTP_GET, handleCreateNewGauge);
   server.on("/can-sniffer", HTTP_GET, handleCanSniffer);
   server.on("/old-gauge", HTTP_GET, handleDeleteOldGauge);
-  // server.on("/delete-gauge", HTTP_POST, handleDeleteGauge);
+  server.on("/getData", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String response = "{\"id\":" + String(packet.id) +
+                      ",\"rtr\":" + String(packet.rtr) +
+                      ",\"ide\":" + String(packet.ide) +
+                      ",\"dlc\":" + String(packet.dlc) + ",";
+    response += "\"dataArray\":[";
+    for (int i = 0; i < packet.dlc; i++) {
+      response += String(packet.dataArray[i]);
+      if (i < packet.dlc - 1) {
+        response += ",";
+      }
+    }
+    response += "]}";
 
+    request->send(200, "application/json", response);
+  });
+  server.on("/delete-gauge", HTTP_POST, handleDeleteGauge);
   server.onNotFound(notFound);
   server.begin();
 }
 
-// void updateEncoder(){
-//   int MSB = digitalRead(PinA); //MSB = most significant bit
-//   int LSB = digitalRead(PinB); //LSB = least significant bit
+void test_update_screen(packet_t * _packet){
+  if(spedometer_size==0){}
+  else{
+    if(spedometer[j]->getFrame()==_packet->id){
+      if((spedometer[j]->getByteMSB()!=8)&&(spedometer[j]->getByteLSB()!=8)){
+        int value = _packet->dataArray[spedometer[j]->getByteMSB()]<<8+_packet->dataArray[spedometer[j]->getByteLSB()];
+        spedometer[j]->setValue(value);
+        spedometer[j]->update();
+      }
+      else if((spedometer[j]->getByteMSB()==8&&spedometer[j]->getByteLSB()!=8)){
+        int value = _packet->dataArray[spedometer[j]->getByteLSB()];
+        spedometer[j]->setValue(value);
+        spedometer[j]->update();
+      }
+      else if((spedometer[j]->getByteMSB()!=8&&spedometer[j]->getByteLSB()==8)){
+        int value = _packet->dataArray[spedometer[j]->getByteMSB()];
+        spedometer[j]->setValue(value);
+        spedometer[j]->update();
+      }
+    }
+    
+  }  
+}
 
-//   int encoded = (MSB << 1) |LSB; //converting the 2 pin value to single number
-//   int sum  = (lastEncoded << 2) | encoded; //adding it to the previous encoded value
-
-//   if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderPos ++;
-//   if(sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderPos --;
-
-//   lastEncoded = encoded; //store this value for next time
-// }
-unsigned long long timer;
-bool flag;
+void rebootCheck(uint8_t pin, uint8_t restart_time){
+ timer = millis();
+ while(digitalRead(pin)){
+    if ((millis() - timer)>restart_time*1000){
+      ESP.restart(); 
+    }
+    else if ((millis() - timer)>2000){
+      tft.fillScreen(BACKGROUNDCOLOR_AUDI);
+      tft.setTextSize(2);
+      tft.drawString("Restart in:", tft.width()/2, tft.height()/2);
+      tft.drawString(String((int) restart_time-(millis()-timer)/1000), tft.width()/2, tft.height()/2+20);
+    }
+    else{
+      test_update_screen(&packet);
+    }
+  }
+  if(millis()-timer>50&&millis()-timer<2000){
+    j++;
+    if(j>=spedometer_size){
+      j=0;
+    }
+  }
+}
 
 void loop() 
 {
- 
-
-  if(spedometer_size==0){}
-  else{
-  for (size_t i = 0; i < 100; i++)
-  {
-      if(digitalRead(34)==true){
-        j++;
-        if(j>spedometer_size-1){
-          j=0;
-        }
-      while(digitalRead(34)==true){};
-      }
-      speedAngle++;
-      if (speedAngle > 260)
-        speedAngle = 0;
-      spedometer[j]->setValue(speedAngle);
-      spedometer[j]->update();
-    }
-  }
-  
+  rebootCheck(34,5);
+  test_update_screen(&packet);
+  #if RANDOM_CAN
+  CANsimulate(&packet);
+  #endif
 }
 
 
- // packetManager.CANsimulate();
+ 
