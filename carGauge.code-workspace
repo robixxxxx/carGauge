@@ -94,7 +94,9 @@
 			"string_view": "cpp",
 			"cinttypes": "cpp",
 			"set": "cpp",
-			"netfwd": "cpp"
+			"netfwd": "cpp",
+			"bitset": "cpp",
+			"regex": "cpp"
 		}
 	}
 }
