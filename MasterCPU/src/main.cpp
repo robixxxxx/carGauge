@@ -1,14 +1,20 @@
-//#include <CanPacketManager.h>
-// #include "SPI.h"
+
 #include <EEPROM.h>
 #include <webSite.h>
 #include <Gauge.h>
-#include <LittleFS.h>
 #include <simCAN.h>
-// #include <ArduinoJson.h>
+#include <CAN.h>
+#include <WiFi.h>
+
 #define FORMAT 0
 #define EEPROM_SIZE 512
-#define RANDOM_CAN 1
+#define RANDOM_CAN 0
+
+#define SEPARATOR ','
+#define TERMINATOR '\n'
+SPIClass xspi = SPIClass(HSPI);
+const int MAX_DATA_ARRAY_SIZE = 20;
+
 const char *ssid = "FunBox3-EA22";
 const char *password = "9LYXSMWWKFN7";
 const char *characters[] = {"0123456789",
@@ -26,11 +32,14 @@ Gauge * spedometer[4];
 String spedometer_name[4];
 uint8_t speedAngle = 0;
 
-packet_t packet;
 
 uint32_t timer;
 bool flag; 
 
+
+/// @brief Random String Generaor for Wifi password
+/// @param length 
+/// @return 
 String randomStringGenerator(int length){
   String result = "";
   char actual;
@@ -49,6 +58,8 @@ String randomStringGenerator(int length){
   return result;
 }
 
+/// @brief Handler for web page for gauge deleting from memory
+/// @param request 
 void handleDeleteOldGauge(AsyncWebServerRequest * request){
   String content = F("<!DOCTYPE html>\n<html lang='en'>\n<head>\n<style>\n");
   content +=".button {";
@@ -80,15 +91,11 @@ void handleDeleteOldGauge(AsyncWebServerRequest * request){
   request->send(200, "text/html", content);
 }
 
+/// @brief Handler for gauge deleting from meemory
+/// @param request 
 void handleDeleteGauge(AsyncWebServerRequest * request){
   for (size_t i = 0; i < request->params(); i++) {
     AsyncWebParameter *param = request->getParam(i);
-    Serial.println("Param Name");
-    Serial.println(param->name());
-    Serial.println("Param Value");
-    Serial.println(param->value());
-    Serial.println(spedometer[param->value().toInt()]->getName());
-    Serial.println(param->name());
     if (param->value().toInt() >= 0 && param->value().toInt() < spedometer_size) {
     if(spedometer[param->value().toInt()]->getName() == param->name()){
         int id = param->value().toInt();
@@ -148,6 +155,8 @@ void handleDeleteGauge(AsyncWebServerRequest * request){
   }
 }
 
+/// @brief Handler for gauge adding
+/// @param request 
 void handleAddGauge(AsyncWebServerRequest *request) {
   bool unitExists = false;
   bool gaugeNameExists = false;
@@ -208,14 +217,7 @@ for (size_t i = 0; i < request->params(); i++) {
   if (unitExists&&gaugeNameExists&&frameNumberExists&&spedometer_size<4) 
 {
     // Create a new AnalogueGauge object and update it
-    try
-    {
-      spedometer[spedometer_size] = new Gauge(&sprite1, &tft, unit, true);
-    }
-    catch(const std::exception& e)
-    {
-      Serial.println(e.what());
-    }
+    spedometer[spedometer_size] = new Gauge(&sprite1, &tft, unit, true);
     int eepromAddress = 2 + (gaugedatasize*spedometer_size);
     
     spedometer[spedometer_size]->setName(gaugeName);
@@ -227,7 +229,6 @@ for (size_t i = 0; i < request->params(); i++) {
     spedometer[spedometer_size]->setFrame(frameNumber);
     spedometer[spedometer_size]->setByteMSB(msbByteNumber);
     spedometer[spedometer_size]->setByteLSB(lsbByteNumber);
-    spedometer[spedometer_size]->init();
     for(char i : gaugeName){
       EEPROM.write(eepromAddress, i);
       eepromAddress++;
@@ -291,7 +292,6 @@ for (size_t i = 0; i < request->params(); i++) {
     EEPROM.write(eepromAddress, spedometer[spedometer_size]->getDigitalGaugeFontSize());
     eepromAddress++;
     EEPROM.write(eepromAddress, spedometer[spedometer_size]->getUnitGaugeFontSize());
-    Serial.print(eepromAddress);
     spedometer_size++;
     EEPROM.write(1, spedometer_size);
     EEPROM.commit();
@@ -306,22 +306,47 @@ for (size_t i = 0; i < request->params(); i++) {
   }
 }
 
+void handleSetCanSpeed(AsyncWebServerRequest * request){
+  for (size_t i = 0; i < request->params(); i++) {
+    AsyncWebParameter *param = request->getParam(i);
+    if (param->name()=="can-speed") {
+      CAN.end();
+      while(!CAN.begin(param->value().toInt(), &xspi)){};
+      request->send(200, "text/plain", "BUS speed adjusted.");
+    }
+    else {
+      // Invalid id, respond with an error
+      request->send(400, "text/plain", "Invalid id.");
+    }
+  }
+}
+
+void handleBrightness(AsyncWebServerRequest * request){
+  for (size_t i = 0; i < request->params(); i++) {
+    AsyncWebParameter *param = request->getParam(i);
+    if (param->name()=="brightness") {
+      analogWrite(TFT_BL, param->value().toInt()*2.5);
+      //request->send(200, "text/plain", "Brightness adjusted.");
+    }
+    else {
+      // Invalid id, respond with an error
+      //request->send(400, "text/plain", "Invalid id.");
+    }
+  }
+}
+
 void formatEEPROM(){
   #if !FORMAT
   if(EEPROM.read(0)!=0){
-    Serial.print("Formatuje");
     for (size_t i = 0; i < EEPROM_SIZE; i++)
     {
-      Serial.print(".");
       EEPROM.write(i,0);
     }
     EEPROM.commit();
   }
   #else
-    Serial.print("Formatuje");
     for (size_t i = 0; i < EEPROM_SIZE; i++)
     {
-      Serial.print(".");
       EEPROM.write(i,0);
     }
     EEPROM.commit();
@@ -379,12 +404,14 @@ void runGaugesFromEeprom(){
     spedometer[i]->setDigitalGaugeFontSize(EEPROM.read(eepromAddress));
     eepromAddress++;
     spedometer[i]->setUnitGaugeFontSize(EEPROM.read(eepromAddress));
-    Serial.print(eepromAddress);
     eepromAddress++;
-    spedometer[i]->init();
     spedometer_size++;
   }
-  
+  else{
+    tft.fillScreen(BACKGROUNDCOLOR_AUDI);
+        tft.setTextSize(1);
+        tft.drawString("There's no gauges to init", 10, tft.height()/2);
+  }
 }
 
 void wifiInit(uint8_t pin){
@@ -416,13 +443,12 @@ void wifiInit(uint8_t pin){
       tft.drawString(("SSID:" + _ssid), 10, tft.height()/2-20);
       tft.drawString(("PASS:" + _password), 0, tft.height()/2);
       
-      WiFi.softAP(ssid, _password);
-      IPAddress local_IP(192, 168, 1, 1);
-      IPAddress gateway(192, 168, 1, 1);
-      IPAddress subnet(255, 255, 255, 0);
-      WiFi.config(local_IP, gateway, subnet);
+      
+      WiFi.mode(WIFI_AP);                    // Changing ESP32 wifi mode to AccessPoint  
+      WiFi.softAP(_ssid, _password);
+      
       delay(100);
-      tft.drawString(("IP:" + WiFi.localIP().toString()), 10, tft.height()/2+20);
+      tft.drawString(("IP:" + WiFi.softAPIP().toString()), 10, tft.height()/2+20);
       tft.drawString("Press to exit config mode", 20, tft.height()/2+40);
       while (digitalRead(pin)==false)
       {
@@ -434,59 +460,45 @@ void wifiInit(uint8_t pin){
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
       delay(1000);
-      Serial.println("Connecting to WiFi...");
     }
-    Serial.println("Connected");
     
   }
 }
-
 void onCANReceive(int packetSize){
+  packet.rtr = CAN.packetRtr();
+  Serial.print("CAN packet rtr:" + String(CAN.packetRtr()));
   packet.id = CAN.packetId();
-  packet.rtr = CAN.packetRtr() ? 1 : 0;
-  packet.ide = CAN.packetExtended() ? 1 : 0;
+  Serial.print("CAN packet ID:" + String(CAN.packetId()));
+  packet.ide = CAN.packetExtended();
+  Serial.print("CAN packet extend:" + String(CAN.packetExtended()));
   packet.dlc = CAN.packetDlc();
-  byte i = 0;
-  while (CAN.available()) {
-    packet.dataArray[i++] = CAN.read();
-    if (i >= (sizeof(packet.dataArray) / (sizeof(packet.dataArray[0])))) {
-      break;
-    }
-  }
+  for(int i=0; i<= packet.dlc; i++){
+    Serial.print("CAN packet read:" + String(CAN.read()));
+    packet.dataArray[i] = CAN.read();
+  }  
 }
-
-void canRun(uint32_t canSpeed=500E3){
-#if RANDOM_CAN == 1
-  randomSeed(12345);
-  Serial.println("randomCAN Started");
-#else
-  if (!CAN.begin(canSpeed)) {
-    Serial.println("Starting CAN failed!");
-    while (1);
-  }
-  // register the receive callback
-  CAN.onReceive(onCANReceive);
-  Serial.println("CAN RX TX Started");
-#endif
-}
-
+#define RXD2 16
+#define TXD2 17
 void setup() {
   Serial.begin(115200);
+  
   EEPROM.begin(EEPROM_SIZE);
   pinMode(34, INPUT_PULLDOWN);
   tft.init();
   tft.setRotation(1);
   tft.fillScreen(BACKGROUNDCOLOR_AUDI);
-  // LittleFS.begin(true);
   formatEEPROM();
   
-  
-  
+  if (!CAN.begin(500E3, &xspi)) {
+    Serial.println("Starting CAN failed!");
+    while (1);
+  }
+  Serial.println("CAN Started!");
   wifiInit(34);
   tft.fillScreen(BACKGROUNDCOLOR_AUDI);
   runGaugesFromEeprom();
-  canRun();
   CAN.onReceive(onCANReceive);
+  
   server.on("/", HTTP_GET, handleRoot);
   server.on("/add-gauge", HTTP_POST, handleAddGauge);
   server.on("/new-gauge", HTTP_GET, handleCreateNewGauge);
@@ -508,7 +520,19 @@ void setup() {
 
     request->send(200, "application/json", response);
   });
+  server.on("/setbrightness", HTTP_GET, [](AsyncWebServerRequest *request) {
+    AsyncWebServerRequest * param = request;
+    for (size_t i = 0; i < request->params(); i++) {
+    if(param->getParam(i)->name()=="brightness")
+      analogWrite(TFT_BL, param->getParam(i)->value().toInt());
+    }
+    String response = "";
+    request->send(200, "application/json", response);
+  });
   server.on("/delete-gauge", HTTP_POST, handleDeleteGauge);
+  server.on("/settings", HTTP_GET, handleSettings);
+  server.on("/set-can-speed", HTTP_POST, handleSetCanSpeed);
+  server.on("/set-brightness", HTTP_POST, handleBrightness);
   server.onNotFound(notFound);
   server.begin();
 }

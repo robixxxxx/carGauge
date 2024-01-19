@@ -1,5 +1,8 @@
 //CAN MANAER
-#include <CAN.h>
+
+// #include <CAN.h>
+
+
 
 typedef struct {
   long id;
@@ -8,6 +11,8 @@ typedef struct {
   byte dlc;
   byte dataArray[20];
 } packet_t;
+
+packet_t packet;
 
 const char SEPARATOR = ',';
 const char TERMINATOR = '\n';
