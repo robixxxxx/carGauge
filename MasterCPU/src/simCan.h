@@ -1,8 +1,9 @@
 //CAN MANAER
 
-// #include <CAN.h>
+#include <CAN.h>
 
-
+#define TX_GPIO 5
+#define RX_GPIO 4
 
 typedef struct {
   long id;
@@ -41,6 +42,7 @@ void printPacket(packet_t * packet) {
 }
 //------------------------------------------------------------------------------
 // CAN packet simulator
+
 void CANsimulate(packet_t * txPacket) {
   long sampleIdList[] = {0x110, 0x18DAF111, 0x23A, 0x257, 0x412F1A1, 0x601, 0x18EA0C11};
   int idIndex = random (sizeof(sampleIdList) / sizeof(sampleIdList[0]));
@@ -122,6 +124,20 @@ void RXcallback(void) {
     if (c == TERMINATOR) {
       rxParse(rxBuf, rxPtr);
       rxPtr = 0;
+    }
+  }
+}
+
+void receiveData(){
+  int packetSize = CAN.parsePacket();
+  if (packetSize) {
+    packet.id = CAN.packetId();
+    packet.ide = CAN.packetExtended();
+    packet.rtr = CAN.packetRtr();
+    packet.dlc = CAN.packetDlc();
+    uint8_t i=0;
+    while (CAN.available()) {
+      packet.dataArray[i++] = CAN.read();
     }
   }
 }

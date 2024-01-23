@@ -6,6 +6,10 @@
 		{
 			"name": "MasterCPU",
 			"path": "MasterCPU"
+		},
+		{
+			"name": "dsaddadasa",
+			"path": "../../Documents/PlatformIO/Projects/dsaddadasa"
 		}
 	],
 	"settings": {

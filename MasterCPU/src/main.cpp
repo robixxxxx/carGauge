@@ -12,7 +12,6 @@
 
 #define SEPARATOR ','
 #define TERMINATOR '\n'
-SPIClass xspi = SPIClass(HSPI);
 const int MAX_DATA_ARRAY_SIZE = 20;
 
 const char *ssid = "FunBox3-EA22";
@@ -311,7 +310,7 @@ void handleSetCanSpeed(AsyncWebServerRequest * request){
     AsyncWebParameter *param = request->getParam(i);
     if (param->name()=="can-speed") {
       CAN.end();
-      while(!CAN.begin(param->value().toInt(), &xspi)){};
+      while(!CAN.begin(param->value().toInt())){};
       request->send(200, "text/plain", "BUS speed adjusted.");
     }
     else {
@@ -352,6 +351,7 @@ void formatEEPROM(){
     EEPROM.commit();
   #endif
 }
+
 void runGaugesFromEeprom(){
   int eepromAddress = 0;
   if(EEPROM.read(1)!=0)
@@ -464,21 +464,7 @@ void wifiInit(uint8_t pin){
     
   }
 }
-void onCANReceive(int packetSize){
-  packet.rtr = CAN.packetRtr();
-  Serial.print("CAN packet rtr:" + String(CAN.packetRtr()));
-  packet.id = CAN.packetId();
-  Serial.print("CAN packet ID:" + String(CAN.packetId()));
-  packet.ide = CAN.packetExtended();
-  Serial.print("CAN packet extend:" + String(CAN.packetExtended()));
-  packet.dlc = CAN.packetDlc();
-  for(int i=0; i<= packet.dlc; i++){
-    Serial.print("CAN packet read:" + String(CAN.read()));
-    packet.dataArray[i] = CAN.read();
-  }  
-}
-#define RXD2 16
-#define TXD2 17
+
 void setup() {
   Serial.begin(115200);
   
@@ -488,8 +474,8 @@ void setup() {
   tft.setRotation(1);
   tft.fillScreen(BACKGROUNDCOLOR_AUDI);
   formatEEPROM();
-  
-  if (!CAN.begin(500E3, &xspi)) {
+  CAN.setPins(RX_GPIO, TX_GPIO);
+  if (!CAN.begin(500E3)) {
     Serial.println("Starting CAN failed!");
     while (1);
   }
@@ -497,7 +483,6 @@ void setup() {
   wifiInit(34);
   tft.fillScreen(BACKGROUNDCOLOR_AUDI);
   runGaugesFromEeprom();
-  CAN.onReceive(onCANReceive);
   
   server.on("/", HTTP_GET, handleRoot);
   server.on("/add-gauge", HTTP_POST, handleAddGauge);
@@ -587,11 +572,9 @@ void rebootCheck(uint8_t pin, uint8_t restart_time){
 
 void loop() 
 {
-  rebootCheck(34,5);
+  receiveData();
   test_update_screen(&packet);
-  #if RANDOM_CAN
-  CANsimulate(&packet);
-  #endif
+  rebootCheck(34,5);
 }
 
 
