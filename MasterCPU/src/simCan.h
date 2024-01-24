@@ -18,6 +18,53 @@ packet_t packet;
 const char SEPARATOR = ',';
 const char TERMINATOR = '\n';
 const char RXBUF_LEN = 100;
+
+int changeCanBusSpeed(int num){
+  CAN.end();
+  unsigned int speed;
+  switch (num)
+  {
+    case 1:
+      speed = 10000;
+      break;
+    case 2:
+      speed = 20000;
+      break;
+    case 3:
+      speed = 33300;
+      break;
+    case 4:
+      speed = 50000;
+      break;
+    case 5:
+      speed = 83300;
+      break;
+    case 6:
+      speed = 100000;
+      break;
+    case 7:
+      speed = 125000;
+      break;
+    case 8:
+      speed = 250000;
+      break;
+    case 9:
+      speed = 500000;
+      break;
+    case 10:
+      speed = 1000000;
+      break;
+
+    default:
+      speed = 500000;
+      num = 9;
+      return false;
+      break;
+  }
+  while(!CAN.begin(speed)){};
+  return num;
+}
+
 //------------------------------------------------------------------------------
 // Printing a packet to serial
 void printHex(long num) {

@@ -1,22 +1,38 @@
     #include <Gauge.h>
 
     void Gauge::drawDigitalValue(){
+        if(_type==1){
         _sprite->setTextFont(_digitalGaugeFont);
         _sprite->setTextSize(_digitalGaugeFontSize);
         _sprite->setTextColor(_textColor,_backgroundColor);
         _sprite->drawString(String((int)this->_value),_cx,_cy);
+        }
+        else{
+        _sprite->setTextFont(_digitalGaugeFont);
+        _sprite->setTextSize(_digitalGaugeFontSize+1);
+        _sprite->setTextColor(_textColor,_backgroundColor);
+        _sprite->drawString(String((int)this->_value),_cx,_cy);
+        }
     }
 
     void Gauge::drawUnit(){
+        if(_type!=3){
         _sprite->setTextFont(_unitGaugeFont);
-        _sprite->setTextSize(_unitGaugeFontSize);
+        _sprite->setTextSize(_unitGaugeFontSize+1);
         _sprite->drawString(_unit,_cx,_cy+32);
+        }
+        else{
+        _sprite->setTextFont(_unitGaugeFont);
+        _sprite->setTextSize(_unitGaugeFontSize+1);
+        _sprite->drawString(_unit,_cx,_cy+64);
+        }
+
     }
 
     void Gauge::drawGauge(){
-        _sprite->drawSmoothArc(_cx, _cy, _r-5, _r-6, 30, 330, _arcColors, _backgroundColor);
+        _sprite->drawSmoothArc(_cx, _cy, _r-5, _r-6, 30, 235, _arcColors, _backgroundColor);
         _sprite->setTextFont(_analogueGaugeFont);
-        _sprite->setTextSize(_analogueGaugeFontSize);
+        _sprite->setTextSize(_analogueGaugeFontSize+1);
         for(int i=0;i<26;i++){
             if(i<20) {color1=_backgroundColor; color2=_scaleColors;} else {color1=REDCOLOR_AUDI; color2=REDCOLOR_AUDI;}
             int angle = (i*12+120)%360;
@@ -40,11 +56,19 @@
         //angle multiplier
         sA=this->_value*1.2;
         int angle = sA+120;
-        float ax = ((_r-14)*cos(rad*(angle%360)))+_cx;
-        float ay = ((_r-14)*sin(rad*(angle%360)))+_cy;
-        float bx = ((_r-36)*cos(rad*(angle%360)))+_cx;
-        float by = ((_r-36)*sin(rad*(angle%360)))+_cy;
-
+        
+        float ax = ((_r-14)*cos(rad*(angle%360)))+_cx;//-14
+        float ay = ((_r-14)*sin(rad*(angle%360)))+_cy;//-14
+        float bx;
+        float by;
+        if(_type==1){
+            bx = ((_r-36)*cos(rad*(angle%360)))+_cx;
+            by = ((_r-36)*sin(rad*(angle%360)))+_cy;
+        }
+        else if(_type==2){
+            bx = ((0)*cos(rad*(angle%360)))+_cx;
+            by = ((0)*sin(rad*(angle%360)))+_cy;
+        }
         // _sprite->drawWedgeLine(px[(int)sA],py[(int)sA],nx[(int)sA],ny[(int)sA],2,2,_needleColor);
         _sprite->drawWedgeLine(ax,ay,bx,by,2,2,_needleColor);
     }
@@ -65,7 +89,7 @@
         _sprite->setTextDatum(4);
     }
     
-    Gauge::Gauge(TFT_eSprite * sprite, TFT_eSPI * tft, String _unit,  bool showDigitalValue, 
+    Gauge::Gauge(TFT_eSprite * sprite, TFT_eSPI * tft, String _unit,  uint8_t type, 
     uint8_t analogueGaugeFont, uint8_t digitalGaugeFont, uint8_t unitGaugeFont, uint8_t analogueGaugeFontSize, uint8_t digitalGaugeFontSize, uint8_t unitGaugeFontSize){
         
         _sprite = sprite;
@@ -75,7 +99,7 @@
         _ir = _r*0,98;
         _width = tft->width();
         _height = tft->height();
-        _showDigitalValue = showDigitalValue;
+        _type = type;
         _unit = _unit;
         _backgroundColor = BACKGROUNDCOLOR_AUDI;
         _arcColors=TFT_SILVER;
@@ -96,43 +120,43 @@
         _sprite->setTextDatum(4);
     }
 
-    Gauge::Gauge(TFT_eSprite * sprite, TFT_eSPI * tft, String _unit, 
-    uint8_t digitalGaugeFont, uint8_t unitGaugeFont, uint8_t digitalGaugeFontSize, uint8_t unitGaugeFontSize){
+    // Gauge::Gauge(TFT_eSprite * sprite, TFT_eSPI * tft, String _unit, 
+    // uint8_t digitalGaugeFont, uint8_t unitGaugeFont, uint8_t digitalGaugeFontSize, uint8_t unitGaugeFontSize){
         
-        _sprite = sprite;
-        _cx = tft->width()/2;
-        _cy = tft->height()/2;
-        _r = tft->width()<=tft->width()?tft->width()/2:tft->height()/2;
-        _ir = _r*0,98;
-        _width = tft->width();
-        _height = tft->height();
-        _unit = _unit;
-        _showDigitalValue = false;
-        _backgroundColor = BACKGROUNDCOLOR_AUDI;
-        _textColor=WHITECOLOR_AUDI;
-        _digitalGaugeFont = digitalGaugeFont;
-        _unitGaugeFont = unitGaugeFont;
-        _digitalGaugeFontSize = digitalGaugeFontSize;
-        _unitGaugeFontSize = unitGaugeFontSize;
-        _angle = 0;
-        _sprite->createSprite(240,220);
-        _sprite->setSwapBytes(true);
-        _sprite->setTextDatum(4);
-        _sprite->setTextColor(TFT_WHITE,BACKGROUNDCOLOR_AUDI);
-        _sprite->setTextDatum(4);
-    }
+    //     _sprite = sprite;
+    //     _cx = tft->width()/2;
+    //     _cy = tft->height()/2;
+    //     _r = tft->width()<=tft->width()?tft->width()/2:tft->height()/2;
+    //     _ir = _r*0,98;
+    //     _width = tft->width();
+    //     _height = tft->height();
+    //     _unit = _unit;
+    //     _type = 1;
+    //     _backgroundColor = BACKGROUNDCOLOR_AUDI;
+    //     _textColor=WHITECOLOR_AUDI;
+    //     _digitalGaugeFont = digitalGaugeFont;
+    //     _unitGaugeFont = unitGaugeFont;
+    //     _digitalGaugeFontSize = digitalGaugeFontSize;
+    //     _unitGaugeFontSize = unitGaugeFontSize;
+    //     _angle = 0;
+    //     _sprite->createSprite(240,220);
+    //     _sprite->setSwapBytes(true);
+    //     _sprite->setTextDatum(4);
+    //     _sprite->setTextColor(TFT_WHITE,BACKGROUNDCOLOR_AUDI);
+    //     _sprite->setTextDatum(4);
+    // }
     Gauge::~Gauge(){}
     
     
 
     void Gauge::update(){
         _sprite->fillSprite(_backgroundColor);
-        drawGauge();
-        drawNeedle();
-        if (_showDigitalValue)
-        {
+        if(_type!=3)
+            drawGauge();
+        if(_type!=3)
+            drawNeedle();
+        if(_type!=2)
             drawDigitalValue();
-        }
         drawUnit();
         _sprite->pushSprite(0,0);
     }
@@ -155,8 +179,8 @@
     void Gauge::setUnit(String unit){
         _unit = unit;
     }
-    void Gauge::setShowDigitalValue(bool show){
-        _showDigitalValue = show;
+    void Gauge::setGaugeType(uint8_t type){
+        _type = type;
     }
     void Gauge::setValue(uint16_t value){
         _value = value;
@@ -224,8 +248,8 @@
     String Gauge::getUnit(){
         return _unit;
     }
-    bool Gauge::getShowDigitalValue(){
-        return _showDigitalValue;
+    uint8_t Gauge::getGaugeType(){
+        return _type;
     }
     uint16_t Gauge::getValue(){
         return _value;

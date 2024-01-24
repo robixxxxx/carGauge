@@ -27,7 +27,7 @@ class Gauge{
     uint8_t _byteLSB;
     String _name;
     String _unit;
-    bool _showDigitalValue;
+    uint8_t _type;
     uint8_t _analogueGaugeFont, _digitalGaugeFont, _unitGaugeFont;
     uint8_t _analogueGaugeFontSize, _digitalGaugeFontSize, _unitGaugeFontSize;
     uint16_t _backgroundColor, _arcColors, _scaleColors, _textColor, _needleColor;
@@ -49,10 +49,10 @@ class Gauge{
 
     public:
     Gauge(TFT_eSprite * sprite, TFT_eSPI * tft);
-    Gauge(TFT_eSprite * sprite, TFT_eSPI * tft, String _unit,  bool showDigitalValue, 
+    Gauge(TFT_eSprite * sprite, TFT_eSPI * tft, String _unit,  uint8_t type=1, 
     uint8_t analogueGaugeFont=1, uint8_t digitalGaugeFont=7, uint8_t unitGaugeFont=1, uint8_t analogueGaugeFontSize=1, uint8_t digitalGaugeFontSize=1, uint8_t unitGaugeFontSize=1);
-    Gauge(TFT_eSprite * sprite, TFT_eSPI * tft, String _unit, 
-    uint8_t digitalGaugeFont=7, uint8_t unitGaugeFont=1, uint8_t digitalGaugeFontSize=1, uint8_t unitGaugeFontSize=1);
+    // Gauge(TFT_eSprite * sprite, TFT_eSPI * tft, String _unit, 
+    // uint8_t digitalGaugeFont=7, uint8_t unitGaugeFont=1, uint8_t digitalGaugeFontSize=1, uint8_t unitGaugeFontSize=1);
     ~Gauge();
     void update();
 
@@ -62,7 +62,7 @@ class Gauge{
     void setTextColor(uint16_t color);
     void setNeedleColor(uint16_t color);
     void setUnit(String unit);
-    void setShowDigitalValue(bool show);
+    void setGaugeType(uint8_t type);
     void setValue(uint16_t value);
     void setAnalogueGaugeFont(uint8_t font);
     void setDigitalGaugeFont(uint8_t font);
@@ -85,7 +85,7 @@ class Gauge{
     uint16_t getTextColor();
     uint16_t getNeedleColor();
     String getUnit();
-    bool getShowDigitalValue();
+    uint8_t getGaugeType();
     uint16_t getValue();
     uint8_t getAnalogueGaugeFont();
     uint8_t getDigitalGaugeFont();

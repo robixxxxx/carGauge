@@ -5,6 +5,7 @@
 #include <simCAN.h>
 #include <CAN.h>
 #include <WiFi.h>
+#include <logo.h>
 
 #define FORMAT 0
 #define EEPROM_SIZE 512
@@ -23,7 +24,7 @@ const char *characters[] = {"0123456789",
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite sprite1 = TFT_eSprite(&tft);
 
-int gaugedatasize = 40;
+int gaugedatasize = 41;
 
 uint8_t j=0;
 static int spedometer_size = 0;
@@ -183,6 +184,7 @@ for (size_t i = 0; i < request->params(); i++) {
     }
     if(param->name()=="gauge-type"){
       gaugeType=param->value().toInt();
+      Serial.println(gaugeType);
     }
     if(param->name()=="gauge-name"){
       gaugeName=param->value();
@@ -216,9 +218,8 @@ for (size_t i = 0; i < request->params(); i++) {
   if (unitExists&&gaugeNameExists&&frameNumberExists&&spedometer_size<4) 
 {
     // Create a new AnalogueGauge object and update it
-    spedometer[spedometer_size] = new Gauge(&sprite1, &tft, unit, true);
-    int eepromAddress = 2 + (gaugedatasize*spedometer_size);
-    
+    spedometer[spedometer_size] = new Gauge(&sprite1, &tft, unit, gaugeType);
+    int eepromAddress = 3 + (gaugedatasize*spedometer_size);
     spedometer[spedometer_size]->setName(gaugeName);
     spedometer[spedometer_size]->setBackgroundColor((uint16_t) rand());
     spedometer[spedometer_size]->setArcColors((uint16_t) rand());
@@ -228,16 +229,12 @@ for (size_t i = 0; i < request->params(); i++) {
     spedometer[spedometer_size]->setFrame(frameNumber);
     spedometer[spedometer_size]->setByteMSB(msbByteNumber);
     spedometer[spedometer_size]->setByteLSB(lsbByteNumber);
-    for(char i : gaugeName){
-      EEPROM.write(eepromAddress, i);
-      eepromAddress++;
-    }
-    if(gaugeName.length()-1<10){
-      for (size_t i = 0; i < 10-gaugeName.length(); i++)
-      {
+    for(int i=0; i<10; i++){
+      if(i<gaugeName.length())
+        EEPROM.write(eepromAddress, gaugeName[i]);
+      else
         EEPROM.write(eepromAddress, 0);
-        eepromAddress++;
-      }
+      eepromAddress++;
     }
     EEPROM.write(eepromAddress, frameNumber>>8);
     eepromAddress++;
@@ -267,18 +264,14 @@ for (size_t i = 0; i < request->params(); i++) {
     eepromAddress++;
     EEPROM.write(eepromAddress, spedometer[spedometer_size]->getNeedleColor()&0xFF);
     eepromAddress++;
-    for(char i : unit){
-      EEPROM.write(eepromAddress, i);
+    for(int i=0; i<10; i++){
+      if(i<unit.length())
+        EEPROM.write(eepromAddress, unit[i]);
+      else
+        EEPROM.write(eepromAddress, 0);
       eepromAddress++;
     }
-    if(unit.length()-1<10){
-      for (size_t i = 0; i < 10-unit.length(); i++)
-      {
-        EEPROM.write(eepromAddress, 0);
-        eepromAddress++;
-      }
-    }
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getShowDigitalValue());
+    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getGaugeType());
     eepromAddress++;
     EEPROM.write(eepromAddress, spedometer[spedometer_size]->getAnalogueGaugeFont());
     eepromAddress++;
@@ -309,9 +302,13 @@ void handleSetCanSpeed(AsyncWebServerRequest * request){
   for (size_t i = 0; i < request->params(); i++) {
     AsyncWebParameter *param = request->getParam(i);
     if (param->name()=="can-speed") {
-      CAN.end();
-      while(!CAN.begin(param->value().toInt())){};
-      request->send(200, "text/plain", "BUS speed adjusted.");
+      if(changeCanBusSpeed(param->value().toInt())==param->value().toInt()){
+        EEPROM.write(2, param->value().toInt());
+        EEPROM.commit();
+        request->send(200, "text/plain", "BUS speed adjusted.");
+      }
+      else
+      request->send(400, "text/plain", "BUS speed adjusted to 500kbps becouse of error.");
     }
     else {
       // Invalid id, respond with an error
@@ -325,11 +322,11 @@ void handleBrightness(AsyncWebServerRequest * request){
     AsyncWebParameter *param = request->getParam(i);
     if (param->name()=="brightness") {
       analogWrite(TFT_BL, param->value().toInt()*2.5);
-      //request->send(200, "text/plain", "Brightness adjusted.");
+      request->send(200, "text/plain", "Brightness adjusted.");
     }
     else {
       // Invalid id, respond with an error
-      //request->send(400, "text/plain", "Invalid id.");
+      request->send(400, "text/plain", "Invalid id.");
     }
   }
 }
@@ -354,12 +351,14 @@ void formatEEPROM(){
 
 void runGaugesFromEeprom(){
   int eepromAddress = 0;
+  changeCanBusSpeed(EEPROM.read(2));
   if(EEPROM.read(1)!=0)
   for (size_t i = 0; i < EEPROM.read(1); i++)
   {
     spedometer[i] = new Gauge(&sprite1, &tft);
-    eepromAddress = 2 + (i*gaugedatasize);
+    eepromAddress = 3 + (i*gaugedatasize);
     String text = "";
+
     for (size_t i = 0; i < 10; i++)
     {
       if(EEPROM.read(eepromAddress)>0)
@@ -391,7 +390,7 @@ void runGaugesFromEeprom(){
       eepromAddress++;
     }
     spedometer[i]->setUnit(text);
-    spedometer[i]->setShowDigitalValue(EEPROM.read(eepromAddress)&0x01);
+    spedometer[i]->setGaugeType(EEPROM.read(eepromAddress));
     eepromAddress++;
     spedometer[i]->setAnalogueGaugeFont(EEPROM.read(eepromAddress));
     eepromAddress++;
@@ -419,14 +418,16 @@ void wifiInit(uint8_t pin){
     timer = millis();
     while(digitalRead(pin)==true){
       unsigned long remain = millis() - timer;
-      if(remain%1000==0)
+      if(remain%1000==0&&remain<5000){
         tft.fillScreen(BACKGROUNDCOLOR_AUDI);
         tft.setTextSize(1);
-        tft.drawString("Initialising config mode in:", 10, tft.height()/2);
-        tft.drawString(String((int)(5000-remain)/100)+"s", tft.width()/2, tft.height()/2+20);
-        if(remain>5000){
-          tft.drawString("Release to enter config mode", 10, tft.height()/2);
-          while (digitalRead(34)==true)
+        tft.drawString("Initialising config mode in:", 30, tft.height()/2);
+        tft.drawString(String((int)(5000-remain)/1000)+"s", tft.width()/2, tft.height()/2+20);
+      }
+      if(remain>5000){
+          tft.fillScreen(BACKGROUNDCOLOR_AUDI);
+          tft.drawString("Release to enter config mode", 30, tft.height()/2);
+          while (digitalRead(pin)==true)
           {}
         }
     };
@@ -439,17 +440,18 @@ void wifiInit(uint8_t pin){
       String _password = randomStringGenerator(8);
       tft.setTextSize(2);
       tft.fillScreen(BACKGROUNDCOLOR_AUDI);
-      tft.drawString("Log in to config", 20, tft.height()/2-40);
-      tft.drawString(("SSID:" + _ssid), 10, tft.height()/2-20);
-      tft.drawString(("PASS:" + _password), 0, tft.height()/2);
+      tft.drawString("Log in to config", 30, tft.height()/2-40);
+      tft.drawString(("SSID:" + _ssid), 20, tft.height()/2-20);
+      tft.drawString(("PASS:" + _password), 40, tft.height()/2);
       
       
       WiFi.mode(WIFI_AP);                    // Changing ESP32 wifi mode to AccessPoint  
       WiFi.softAP(_ssid, _password);
       
       delay(100);
-      tft.drawString(("IP:" + WiFi.softAPIP().toString()), 10, tft.height()/2+20);
-      tft.drawString("Press to exit config mode", 20, tft.height()/2+40);
+      tft.drawString(("IP:" + WiFi.softAPIP().toString()), 40, tft.height()/2+20);
+      tft.setTextSize(1);
+      tft.drawString("Press to exit", 90, tft.height()/2+40);
       while (digitalRead(pin)==false)
       {
         delay(100);
@@ -469,7 +471,7 @@ void setup() {
   Serial.begin(115200);
   
   EEPROM.begin(EEPROM_SIZE);
-  pinMode(34, INPUT_PULLDOWN);
+  pinMode(18, INPUT_PULLDOWN);
   tft.init();
   tft.setRotation(1);
   tft.fillScreen(BACKGROUNDCOLOR_AUDI);
@@ -480,7 +482,7 @@ void setup() {
     while (1);
   }
   Serial.println("CAN Started!");
-  wifiInit(34);
+  wifiInit(18);
   tft.fillScreen(BACKGROUNDCOLOR_AUDI);
   runGaugesFromEeprom();
   
@@ -527,7 +529,7 @@ void test_update_screen(packet_t * _packet){
   else{
     if(spedometer[j]->getFrame()==_packet->id){
       if((spedometer[j]->getByteMSB()!=8)&&(spedometer[j]->getByteLSB()!=8)){
-        int value = _packet->dataArray[spedometer[j]->getByteMSB()]<<8+_packet->dataArray[spedometer[j]->getByteLSB()];
+        int value = (_packet->dataArray[spedometer[j]->getByteMSB()]<<8)+_packet->dataArray[spedometer[j]->getByteLSB()];
         spedometer[j]->setValue(value);
         spedometer[j]->update();
       }
@@ -542,7 +544,6 @@ void test_update_screen(packet_t * _packet){
         spedometer[j]->update();
       }
     }
-    
   }  
 }
 
@@ -555,7 +556,7 @@ void rebootCheck(uint8_t pin, uint8_t restart_time){
     else if ((millis() - timer)>2000){
       tft.fillScreen(BACKGROUNDCOLOR_AUDI);
       tft.setTextSize(2);
-      tft.drawString("Restart in:", tft.width()/2, tft.height()/2);
+      tft.drawString("Restart in:", tft.width()/2-50, tft.height()/2);
       tft.drawString(String((int) restart_time-(millis()-timer)/1000), tft.width()/2, tft.height()/2+20);
     }
     else{
@@ -574,7 +575,7 @@ void loop()
 {
   receiveData();
   test_update_screen(&packet);
-  rebootCheck(34,5);
+  rebootCheck(18,5);
 }
 
 
