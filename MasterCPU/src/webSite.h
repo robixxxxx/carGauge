@@ -60,7 +60,6 @@ content += "table {";
 content += "width: 100%;"; 
 content += "border-collapse: collapse;"; 
 content += "margin: 20px;"; 
-content += "background-color: #2d2d2d;"; 
 content += "color: #ffffff;"; 
 content += "}"; 
 content += "table, th, td {"; 
@@ -74,7 +73,7 @@ content += "}";
 content += "th, td.changed {"; 
 content += "background-color: #ffcc00; /* Kolor tła dla zmienionych danych */"; 
 content += "}"; 
-content += "#filter-input, #display-mode {"; 
+content += "#filter-input, #display-mode, #toggle-color {"; 
 content += "width: 100%;"; 
 content += "padding: 10px;"; 
 content += "background-color: #2d2d2d;"; 
@@ -97,7 +96,7 @@ content +=".button1 {background-color: #008CBA;}";
 content += "</style>"; 
 content += "</head>"; 
 content += "<body>"; 
-content += "<a href='/'><input type='button' class='button button1' value='Home'></a>";  
+content += "<a href='/'><input type='button' class='button button1' value='Home'></a><br/>";  
 content += "<div>"; 
 content += "<label for=\"display-mode\">Display Mode:</label>"; 
 content += "<select id=\"display-mode\" onchange=\"changeDisplayMode()\">"; 
@@ -105,11 +104,15 @@ content += "<option value=\"hex\">Hex</option>";
 content += "<option value=\"dec\">Dec</option>"; 
 content += "<option value=\"bin\">Bin</option>"; 
 content += "</select>"; 
-content += "</div>"; 
+content += "</div><br/>"; 
 content += "<div>"; 
 content += "<label for=\"filter-input\">Filter by ID:</label>"; 
 content += "<input type=\"text\" id=\"filter-input\" oninput=\"filterData()\">"; 
-content += "</div>"; 
+content += "</div><br/>"; 
+content += "<div>"; 
+content += "<label for=\"toggle-color\">Toggle Color:</label>"; 
+content += "<input type=\"checkbox\" id=\"toggle-color\" onclick=\"toggleColoring()\">"; 
+content += "</div><br/>"; 
 content += "<table id=\"data-table\">"; 
 content += "<thead>"; 
 content += "<tr>"; 
@@ -130,11 +133,19 @@ content += "<tbody>";
 content += "</tbody>"; 
 content += "</table>"; 
 content += "<script>"; 
-content += "var displayMode = \"hex\";"; 
+content += "var displayMode = \"hex\";";
+content += "var colorEnabled = true;"; 
+
 content += "function changeDisplayMode() {"; 
 content += "displayMode = document.getElementById(\"display-mode\").value;"; 
 content += "filterData();"; 
 content += "}"; 
+
+content += "function toggleColoring() {"; 
+content += "colorEnabled = !colorEnabled;"; 
+content += "filterData();"; 
+content += "}"; 
+
 content += "function updateTable(id, rtr, ide, dlc ,data) {";
 content += "var filterValue = document.getElementById('filter-input').value.toLowerCase();";
 content += "if (id.toString().toLowerCase().includes(filterValue)) {";
@@ -148,6 +159,8 @@ content += "cells[1].innerHTML = rtr;";
 content += "cells[2].innerHTML = ide;";
 content += "for (var j = 0; j < dlc; j++) {";
 content += "var oldValue = cells[j + 3].innerHTML;";
+content += "var backgroundColor = colorEnabled ? calculateBackgroundColor(data[j]) : 'transparent';";
+content += "cells[j + 3].style.background = backgroundColor;";
 content += "cells[j + 3].innerHTML = formatData([data[j]]);";
 content += "if (oldValue !== cells[j + 3].innerHTML) {";
 content += "cells[j + 3].classList.add('changed');";
@@ -168,9 +181,18 @@ content += "cell2.innerHTML = rtr;";
 content += "cell3.innerHTML = ide;";
 content += "for (var j = 0; j < dlc; j++) {";
 content += "var cell = newRow.insertCell(j + 3);";
+content += "var backgroundColor = colorEnabled ? calculateBackgroundColor(data[j]) : 'transparent';";
+content += "cell.style.background = backgroundColor;";
 content += "cell.innerHTML = formatData([data[j]]);";
 content += "}";
 content += "}";
+content += "}";
+content += "function calculateBackgroundColor(value) {";
+content += "var percentage = (value / 255) * 100;";
+content += "var red = Math.floor((255 * percentage) / 100);";
+content += "var green = Math.floor(255 - (255 * percentage) / 100);";
+content += "var blue = 0;";
+content += "return 'rgb(' + red + ',' + green + ',' + blue + ')';";
 content += "}";
 content += "function byteArrayToString(bytes) {"; 
 content += "var hexString = Array.from(bytes, function(byte) {"; 
@@ -217,11 +239,16 @@ content += "};";
 content += "xhr.open('GET', '/getData', true);";
 content += "xhr.send();";
 content += "}";
-content += "setInterval(fetchData, 100); // Periodically fetch data every 1000 ms (1 second)";
+content += "setInterval(fetchData, 10); // Periodically fetch data every 1000 ms (1 second)";
 content += "</script>"; 
 content += "</body>"; 
 content += "</html>";
+
 request->send(200, "text/html", content);
+
+
+
+
 }
 
 void handleSettings(AsyncWebServerRequest *request){

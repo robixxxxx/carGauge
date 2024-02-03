@@ -5,7 +5,6 @@
 #include <simCAN.h>
 #include <CAN.h>
 #include <WiFi.h>
-#include <logo.h>
 
 #define FORMAT 0
 #define EEPROM_SIZE 512
@@ -27,9 +26,9 @@ TFT_eSprite sprite1 = TFT_eSprite(&tft);
 int gaugedatasize = 41;
 
 uint8_t j=0;
-static int spedometer_size = 0;
-Gauge * spedometer[4];
-String spedometer_name[4];
+static int numberOfGauges = 0;
+Gauge * gauge[4];
+String gaugeName[4];
 uint8_t speedAngle = 0;
 
 
@@ -78,10 +77,10 @@ void handleDeleteOldGauge(AsyncWebServerRequest * request){
 
   content += F("<a href='/'><input type='button' class='button button1' value='Home'></a>\n<h2>Object List</h2>\n<ul id='objectList'>\n");
   
-  for (size_t i = 0; i < spedometer_size; ++i) {
-    content += "<li id='object" + String(i) + "'>Name:" + String(spedometer[i]->getName()) + " Frame number" + String(spedometer[i]->getFrame()) + 
+  for (size_t i = 0; i < numberOfGauges; ++i) {
+    content += "<li id='object" + String(i) + "'>Name:" + String(gauge[i]->getName()) + " Frame number" + String(gauge[i]->getFrame()) + 
                "<form action='/delete-gauge' method='post'>"+
-               "<input type='hidden' id='" + String(spedometer[i]->getName()) + "' value='" + String(i) + "' name='" + String(spedometer[i]->getName()) + 
+               "<input type='hidden' id='" + String(gauge[i]->getName()) + "' value='" + String(i) + "' name='" + String(gauge[i]->getName()) + 
                "' class='setting-input'>" + 
                "<input type='submit' class='button button1' value='Delete'></li></form>";
   }
@@ -96,17 +95,17 @@ void handleDeleteOldGauge(AsyncWebServerRequest * request){
 void handleDeleteGauge(AsyncWebServerRequest * request){
   for (size_t i = 0; i < request->params(); i++) {
     AsyncWebParameter *param = request->getParam(i);
-    if (param->value().toInt() >= 0 && param->value().toInt() < spedometer_size) {
-    if(spedometer[param->value().toInt()]->getName() == param->name()){
+    if (param->value().toInt() >= 0 && param->value().toInt() < numberOfGauges) {
+    if(gauge[param->value().toInt()]->getName() == param->name()){
         int id = param->value().toInt();
-        delete spedometer[id];
+        delete gauge[id];
       
-      for (size_t j = id; j < spedometer_size - 1; ++j) {
-        spedometer[j] = spedometer[j + 1];
+      for (size_t j = id; j < numberOfGauges - 1; ++j) {
+        gauge[j] = gauge[j + 1];
       }
       int eepromAddress = 2 + (gaugedatasize*id);
       
-      int toMove = spedometer_size-(id+1);
+      int toMove = numberOfGauges-(id+1);
       for (size_t i = 0; i < gaugedatasize; i++)
       {
         switch (toMove)
@@ -141,8 +140,8 @@ void handleDeleteGauge(AsyncWebServerRequest * request){
       }
       
       // Decrement the array size
-      spedometer_size--;
-      EEPROM.write(1, spedometer_size);
+      numberOfGauges--;
+      EEPROM.write(1, numberOfGauges);
       EEPROM.commit();
 
       // Respond to the client or perform any other necessary actions
@@ -215,20 +214,20 @@ for (size_t i = 0; i < request->params(); i++) {
       lsbByteNumberExists = true;
     }
   }
-  if (unitExists&&gaugeNameExists&&frameNumberExists&&spedometer_size<4) 
+  if (unitExists&&gaugeNameExists&&frameNumberExists&&numberOfGauges<4) 
 {
     // Create a new AnalogueGauge object and update it
-    spedometer[spedometer_size] = new Gauge(&sprite1, &tft, unit, gaugeType);
-    int eepromAddress = 3 + (gaugedatasize*spedometer_size);
-    spedometer[spedometer_size]->setName(gaugeName);
-    spedometer[spedometer_size]->setBackgroundColor((uint16_t) rand());
-    spedometer[spedometer_size]->setArcColors((uint16_t) rand());
-    spedometer[spedometer_size]->setScaleColors((uint16_t) rand());
-    spedometer[spedometer_size]->setTextColor(TFT_WHITE);
-    spedometer[spedometer_size]->setNeedleColor((uint16_t) rand());
-    spedometer[spedometer_size]->setFrame(frameNumber);
-    spedometer[spedometer_size]->setByteMSB(msbByteNumber);
-    spedometer[spedometer_size]->setByteLSB(lsbByteNumber);
+    gauge[numberOfGauges] = new Gauge(&sprite1, &tft, unit, gaugeType);
+    int eepromAddress = 3 + (gaugedatasize*numberOfGauges);
+    gauge[numberOfGauges]->setName(gaugeName);
+    gauge[numberOfGauges]->setBackgroundColor((uint16_t) rand());
+    gauge[numberOfGauges]->setArcColors((uint16_t) rand());
+    gauge[numberOfGauges]->setScaleColors((uint16_t) rand());
+    gauge[numberOfGauges]->setTextColor(TFT_WHITE);
+    gauge[numberOfGauges]->setNeedleColor((uint16_t) rand());
+    gauge[numberOfGauges]->setFrame(frameNumber);
+    gauge[numberOfGauges]->setByteMSB(msbByteNumber);
+    gauge[numberOfGauges]->setByteLSB(lsbByteNumber);
     for(int i=0; i<10; i++){
       if(i<gaugeName.length())
         EEPROM.write(eepromAddress, gaugeName[i]);
@@ -244,25 +243,25 @@ for (size_t i = 0; i < request->params(); i++) {
     eepromAddress++;
     EEPROM.write(eepromAddress, lsbByteNumber);
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getBackgroundColor()>>8);
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getBackgroundColor()>>8);
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getBackgroundColor()&0xFF);
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getBackgroundColor()&0xFF);
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getArcColors()>>8);
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getArcColors()>>8);
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getArcColors()&0xFF);
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getArcColors()&0xFF);
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getScaleColors()>>8);
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getScaleColors()>>8);
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getScaleColors()&0xFF);
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getScaleColors()&0xFF);
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getTextColor()>>8);
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getTextColor()>>8);
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getTextColor()&0xFF);
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getTextColor()&0xFF);
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getNeedleColor()>>8);
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getNeedleColor()>>8);
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getNeedleColor()&0xFF);
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getNeedleColor()&0xFF);
     eepromAddress++;
     for(int i=0; i<10; i++){
       if(i<unit.length())
@@ -271,25 +270,25 @@ for (size_t i = 0; i < request->params(); i++) {
         EEPROM.write(eepromAddress, 0);
       eepromAddress++;
     }
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getGaugeType());
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getGaugeType());
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getAnalogueGaugeFont());
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getAnalogueGaugeFont());
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getDigitalGaugeFont());
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getDigitalGaugeFont());
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getUnitGaugeFont());
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getUnitGaugeFont());
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getAnalogueGaugeFontSize());
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getAnalogueGaugeFontSize());
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getDigitalGaugeFontSize());
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getDigitalGaugeFontSize());
     eepromAddress++;
-    EEPROM.write(eepromAddress, spedometer[spedometer_size]->getUnitGaugeFontSize());
-    spedometer_size++;
-    EEPROM.write(1, spedometer_size);
+    EEPROM.write(eepromAddress, gauge[numberOfGauges]->getUnitGaugeFontSize());
+    numberOfGauges++;
+    EEPROM.write(1, numberOfGauges);
     EEPROM.commit();
     request->send(200, "text/plain", "Gauge added successfully");
   } 
-  else if (spedometer_size==4)
+  else if (numberOfGauges==4)
   {
     request->send(400, "text/plain", "To much gauges");
   }
@@ -355,7 +354,7 @@ void runGaugesFromEeprom(){
   if(EEPROM.read(1)!=0)
   for (size_t i = 0; i < EEPROM.read(1); i++)
   {
-    spedometer[i] = new Gauge(&sprite1, &tft);
+    gauge[i] = new Gauge(&sprite1, &tft);
     eepromAddress = 3 + (i*gaugedatasize);
     String text = "";
 
@@ -365,22 +364,22 @@ void runGaugesFromEeprom(){
       text += (char)EEPROM.read(eepromAddress);
       eepromAddress++;
     }
-    spedometer[i]->setName(text);
-    spedometer[i]->setFrame((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
+    gauge[i]->setName(text);
+    gauge[i]->setFrame((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
     eepromAddress++;
-    spedometer[i]->setByteMSB(EEPROM.read(eepromAddress));
+    gauge[i]->setByteMSB(EEPROM.read(eepromAddress));
     eepromAddress++;
-    spedometer[i]->setByteLSB(EEPROM.read(eepromAddress));
+    gauge[i]->setByteLSB(EEPROM.read(eepromAddress));
     eepromAddress++;
-    spedometer[i]->setBackgroundColor((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
+    gauge[i]->setBackgroundColor((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
     eepromAddress++;
-    spedometer[i]->setArcColors((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
+    gauge[i]->setArcColors((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
     eepromAddress++;
-    spedometer[i]->setScaleColors((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
+    gauge[i]->setScaleColors((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
     eepromAddress++;
-    spedometer[i]->setTextColor((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
+    gauge[i]->setTextColor((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
     eepromAddress++;
-    spedometer[i]->setNeedleColor((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
+    gauge[i]->setNeedleColor((EEPROM.read(eepromAddress)<<8)+EEPROM.read(++eepromAddress));
     eepromAddress++;
     text="";
     for (size_t i = 0; i < 10; i++)
@@ -389,22 +388,22 @@ void runGaugesFromEeprom(){
       text += (char)EEPROM.read(eepromAddress);
       eepromAddress++;
     }
-    spedometer[i]->setUnit(text);
-    spedometer[i]->setGaugeType(EEPROM.read(eepromAddress));
+    gauge[i]->setUnit(text);
+    gauge[i]->setGaugeType(EEPROM.read(eepromAddress));
     eepromAddress++;
-    spedometer[i]->setAnalogueGaugeFont(EEPROM.read(eepromAddress));
+    gauge[i]->setAnalogueGaugeFont(EEPROM.read(eepromAddress));
     eepromAddress++;
-    spedometer[i]->setDigitalGaugeFont(EEPROM.read(eepromAddress));
+    gauge[i]->setDigitalGaugeFont(EEPROM.read(eepromAddress));
     eepromAddress++;
-    spedometer[i]->setUnitGaugeFont(EEPROM.read(eepromAddress));
+    gauge[i]->setUnitGaugeFont(EEPROM.read(eepromAddress));
     eepromAddress++;
-    spedometer[i]->setAnalogueGaugeFontSize(EEPROM.read(eepromAddress));
+    gauge[i]->setAnalogueGaugeFontSize(EEPROM.read(eepromAddress));
     eepromAddress++;
-    spedometer[i]->setDigitalGaugeFontSize(EEPROM.read(eepromAddress));
+    gauge[i]->setDigitalGaugeFontSize(EEPROM.read(eepromAddress));
     eepromAddress++;
-    spedometer[i]->setUnitGaugeFontSize(EEPROM.read(eepromAddress));
+    gauge[i]->setUnitGaugeFontSize(EEPROM.read(eepromAddress));
     eepromAddress++;
-    spedometer_size++;
+    numberOfGauges++;
   }
   else{
     tft.fillScreen(BACKGROUNDCOLOR_AUDI);
@@ -524,30 +523,30 @@ void setup() {
   server.begin();
 }
 
-void test_update_screen(packet_t * _packet){
-  if(spedometer_size==0){}
+void update_screen(packet_t * _packet){
+  if(numberOfGauges==0){}
   else{
-    if(spedometer[j]->getFrame()==_packet->id){
-      if((spedometer[j]->getByteMSB()!=8)&&(spedometer[j]->getByteLSB()!=8)){
-        int value = (_packet->dataArray[spedometer[j]->getByteMSB()]<<8)+_packet->dataArray[spedometer[j]->getByteLSB()];
-        spedometer[j]->setValue(value);
-        spedometer[j]->update();
+    if(gauge[j]->getFrame()==_packet->id){
+      if((gauge[j]->getByteMSB()!=8)&&(gauge[j]->getByteLSB()!=8)){
+        int value = (_packet->dataArray[gauge[j]->getByteMSB()]<<8)+_packet->dataArray[gauge[j]->getByteLSB()];
+        gauge[j]->setValue(value);
+        gauge[j]->update();
       }
-      else if((spedometer[j]->getByteMSB()==8&&spedometer[j]->getByteLSB()!=8)){
-        int value = _packet->dataArray[spedometer[j]->getByteLSB()];
-        spedometer[j]->setValue(value);
-        spedometer[j]->update();
+      else if((gauge[j]->getByteMSB()==8&&gauge[j]->getByteLSB()!=8)){
+        int value = _packet->dataArray[gauge[j]->getByteLSB()];
+        gauge[j]->setValue(value);
+        gauge[j]->update();
       }
-      else if((spedometer[j]->getByteMSB()!=8&&spedometer[j]->getByteLSB()==8)){
-        int value = _packet->dataArray[spedometer[j]->getByteMSB()];
-        spedometer[j]->setValue(value);
-        spedometer[j]->update();
+      else if((gauge[j]->getByteMSB()!=8&&gauge[j]->getByteLSB()==8)){
+        int value = _packet->dataArray[gauge[j]->getByteMSB()];
+        gauge[j]->setValue(value);
+        gauge[j]->update();
       }
     }
   }  
 }
 
-void rebootCheck(uint8_t pin, uint8_t restart_time){
+void userInput(uint8_t pin, uint8_t restart_time){
  timer = millis();
  while(digitalRead(pin)){
     if ((millis() - timer)>restart_time*1000){
@@ -560,12 +559,12 @@ void rebootCheck(uint8_t pin, uint8_t restart_time){
       tft.drawString(String((int) restart_time-(millis()-timer)/1000), tft.width()/2, tft.height()/2+20);
     }
     else{
-      test_update_screen(&packet);
+      update_screen(&packet);
     }
   }
   if(millis()-timer>50&&millis()-timer<2000){
     j++;
-    if(j>=spedometer_size){
+    if(j>=numberOfGauges){
       j=0;
     }
   }
@@ -574,8 +573,8 @@ void rebootCheck(uint8_t pin, uint8_t restart_time){
 void loop() 
 {
   receiveData();
-  test_update_screen(&packet);
-  rebootCheck(18,5);
+  update_screen(&packet);
+  userInput(18,5);
 }
 
 
