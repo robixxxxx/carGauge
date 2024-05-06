@@ -1,5 +1,4 @@
-//CAN MANAER
-
+//CAN MANAGER
 #include <CAN.h>
 
 #define TX_GPIO 5

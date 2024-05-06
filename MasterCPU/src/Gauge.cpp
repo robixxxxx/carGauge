@@ -48,7 +48,6 @@
             _sprite->drawString(String(i*10),tx,ty);
         }else
             _sprite->drawWedgeLine(ax,ay,bx,by,2,1,color2);
-            //_sprite->drawWedgeLine(x[i*12],y[i*12],px[i*12],py[i*12],1,1,color2);
         }
     }
 
@@ -69,7 +68,6 @@
             bx = ((0)*cos(rad*(angle%360)))+_cx;
             by = ((0)*sin(rad*(angle%360)))+_cy;
         }
-        // _sprite->drawWedgeLine(px[(int)sA],py[(int)sA],nx[(int)sA],ny[(int)sA],2,2,_needleColor);
         _sprite->drawWedgeLine(ax,ay,bx,by,2,2,_needleColor);
     }
 
@@ -119,32 +117,6 @@
         _sprite->setTextColor(TFT_WHITE,BACKGROUNDCOLOR_AUDI);
         _sprite->setTextDatum(4);
     }
-
-    // Gauge::Gauge(TFT_eSprite * sprite, TFT_eSPI * tft, String _unit, 
-    // uint8_t digitalGaugeFont, uint8_t unitGaugeFont, uint8_t digitalGaugeFontSize, uint8_t unitGaugeFontSize){
-        
-    //     _sprite = sprite;
-    //     _cx = tft->width()/2;
-    //     _cy = tft->height()/2;
-    //     _r = tft->width()<=tft->width()?tft->width()/2:tft->height()/2;
-    //     _ir = _r*0,98;
-    //     _width = tft->width();
-    //     _height = tft->height();
-    //     _unit = _unit;
-    //     _type = 1;
-    //     _backgroundColor = BACKGROUNDCOLOR_AUDI;
-    //     _textColor=WHITECOLOR_AUDI;
-    //     _digitalGaugeFont = digitalGaugeFont;
-    //     _unitGaugeFont = unitGaugeFont;
-    //     _digitalGaugeFontSize = digitalGaugeFontSize;
-    //     _unitGaugeFontSize = unitGaugeFontSize;
-    //     _angle = 0;
-    //     _sprite->createSprite(240,220);
-    //     _sprite->setSwapBytes(true);
-    //     _sprite->setTextDatum(4);
-    //     _sprite->setTextColor(TFT_WHITE,BACKGROUNDCOLOR_AUDI);
-    //     _sprite->setTextDatum(4);
-    // }
     Gauge::~Gauge(){}
     
     

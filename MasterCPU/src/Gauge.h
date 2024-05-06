@@ -51,8 +51,6 @@ class Gauge{
     Gauge(TFT_eSprite * sprite, TFT_eSPI * tft);
     Gauge(TFT_eSprite * sprite, TFT_eSPI * tft, String _unit,  uint8_t type=1, 
     uint8_t analogueGaugeFont=1, uint8_t digitalGaugeFont=7, uint8_t unitGaugeFont=1, uint8_t analogueGaugeFontSize=1, uint8_t digitalGaugeFontSize=1, uint8_t unitGaugeFontSize=1);
-    // Gauge(TFT_eSprite * sprite, TFT_eSPI * tft, String _unit, 
-    // uint8_t digitalGaugeFont=7, uint8_t unitGaugeFont=1, uint8_t digitalGaugeFontSize=1, uint8_t unitGaugeFontSize=1);
     ~Gauge();
     void update();
 
